@@ -188,7 +188,7 @@ The Desktop GUI ([gui.py](file:///home/swastik/new-project/oppo%20gui/src/oppo_c
 
 ## 8. Summary Timeline
 
-```
+```text
 [Phase 1: GATT Discovery] ──> Scanned BLE GATT ──> Discovered no control attributes
                                        │
 [Phase 2: RFCOMM Pivot]  ──> BTSnoop HCI trace ──> Identified RFCOMM Ch. 15 (DLCI 30) & 0xAA framing
@@ -199,3 +199,11 @@ The Desktop GUI ([gui.py](file:///home/swastik/new-project/oppo%20gui/src/oppo_c
                                        │
 [Phase 5: Desktop GUI]     ──> Built PySide6 App, SVG vector rendering & HeyMelody design system
 ```
+
+---
+
+## 9. Acknowledgements & Prior Art
+
+Special thanks and technical credit to:
+* **[Aasheesh](https://aasheesh.vercel.app/)**: For his foundational research, blog posts, and open reverse engineering work on OnePlus and OPPO TWS earbud protocols. His protocol teardowns provided key context for understanding the OPO framing structure and command layout.
+

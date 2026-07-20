@@ -117,3 +117,11 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+---
+
+## 6. Acknowledgements & Inspiration
+
+Special thanks and recognition to:
+* **[Aasheesh](https://aasheesh.vercel.app/)**: Author of the pioneering reverse engineering analysis on OnePlus/OPPO TWS earbuds protocols. His research and writeups provided vital insights into the OPO protocol framing and architecture.
+
