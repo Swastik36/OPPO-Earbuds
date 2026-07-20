@@ -34,7 +34,8 @@ keywords = [
     "pyside6-gui"
 ]
 dependencies = [
-    "dbus-next>=0.2.3"
+    "dbus-next>=0.2.3",
+    "PySide6>=6.0.0"
 ]
 
 [project.optional-dependencies]
