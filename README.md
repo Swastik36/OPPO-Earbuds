@@ -38,9 +38,24 @@ oppo-control/
 
 ---
 
-## 2. Installation
+## 2. Fast 1-Line Installation (For End Users)
 
-Install the package in editable mode within your virtual environment:
+Install automatically and register `OPPO Companion` directly in your **Linux Application / Start Menu**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Swastik36/OPPO-Gui/main/install.sh | bash
+```
+
+Or run locally:
+```bash
+chmod +x ./install.sh && ./install.sh
+```
+
+---
+
+## 3. Developer / Manual Setup
+
+If you wish to work on the codebase in editable mode:
 
 ```bash
 # Clone and enter the repository
