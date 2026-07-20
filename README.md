@@ -1,6 +1,13 @@
 # OPPO Enco Buds3 Pro Linux Companion
 
-An open-source Linux implementation library and Command-Line Interface (CLI) driver for the **OPPO Enco Buds3 Pro** earbuds.
+![Linux Compatible](https://img.shields.io/badge/OS-Linux-blue?logo=linux)
+![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)
+![Protocol](https://img.shields.io/badge/Protocol-OPO%20v1%20RFCOMM-orange)
+![License](https://img.shields.io/badge/License-GPLv3-green)
+
+An open-source Linux implementation library, Qt6 Desktop GUI, and CLI driver for **OPPO Enco Buds3 Pro** (and OPO v1 protocol earbuds).
+
+> **Keywords / Tags**: `oppo-telemetry-control` • `earbud-control` • `heymelody-linux` • `oppo-enco-buds3-pro` • `tws-control` • `bluetooth-rfcomm` • `bluez` • `pyside6-gui`
 
 Built on top of the reverse-engineered **RFCOMM DLCI 30 (Server Channel 15)** Bluetooth Classic protocol.
 
@@ -124,4 +131,10 @@ if __name__ == "__main__":
 
 Special thanks and recognition to:
 * **[Aasheesh](https://aasheesh.vercel.app/)**: Author of the pioneering reverse engineering analysis on OnePlus/OPPO TWS earbuds protocols. His research and writeups provided vital insights into the OPO protocol framing and architecture.
+
+---
+
+## 7. Search Tags & Discoverability
+
+`oppo-telemetry-control` • `earbud-control` • `oppo-enco-buds3-pro` • `heymelody-linux` • `heymelody-alternative` • `oppo-earbuds-linux` • `oneplus-buds-linux` • `realme-buds-linux` • `tws-telemetry` • `bluetooth-rfcomm-channel-15` • `bluez-oppo-driver` • `pyside6-oppo-gui`
 

@@ -16,6 +16,23 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Topic :: System :: Hardware :: Hardware Drivers"
 ]
+keywords = [
+    "oppo",
+    "oppo-enco",
+    "oppo-enco-buds3-pro",
+    "heymelody",
+    "heymelody-linux",
+    "earbuds",
+    "earbud-control",
+    "oppo-telemetry-control",
+    "tws-control",
+    "bluetooth-rfcomm",
+    "bluez",
+    "oneplus-buds",
+    "realme-buds",
+    "linux-bluetooth",
+    "pyside6-gui"
+]
 dependencies = [
     "dbus-next>=0.2.3"
 ]
