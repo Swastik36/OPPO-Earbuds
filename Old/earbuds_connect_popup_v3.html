@@ -1,0 +1,59 @@
+<div style="min-height:560px;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;border-radius:12px;padding:2rem 0">
+<h2 class="sr-only">Mockup of a phone earbuds connection popup showing the device name, earbud icons, and separate left, right, and case battery percentages.</h2>
+<div style="width:320px;background:var(--surface-2);border-radius:20px;border:0.5px solid var(--border);padding:1.25rem 1.25rem 1.5rem">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+    <p id="title" style="font-size:16px;font-weight:500;margin:0;color:var(--text-primary)">Connecting…</p>
+    <i class="ti ti-x" style="font-size:18px;color:var(--text-muted)" aria-hidden="true"></i>
+  </div>
+
+  <div style="display:flex;justify-content:space-around;align-items:flex-start">
+
+    <div style="text-align:center">
+      <svg width="56" height="70" viewBox="0 0 56 70">
+        <ellipse cx="28" cy="42" rx="13" ry="17" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width="1"/>
+        <rect x="20" y="12" width="10" height="20" rx="5" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width="1"/>
+      </svg>
+      <div id="left-batt" style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:6px;opacity:0;transition:opacity .4s ease">
+        <i class="ti ti-battery-3" style="font-size:15px;color:var(--text-success)" aria-hidden="true"></i>
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary)">82%</span>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin:2px 0 0">Left</p>
+    </div>
+
+    <div style="text-align:center">
+      <svg width="56" height="70" viewBox="0 0 56 70">
+        <ellipse cx="28" cy="42" rx="13" ry="17" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width="1"/>
+        <rect x="20" y="12" width="10" height="20" rx="5" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width="1"/>
+      </svg>
+      <div id="right-batt" style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:6px;opacity:0;transition:opacity .4s ease">
+        <i class="ti ti-battery-2" style="font-size:15px;color:var(--text-success)" aria-hidden="true"></i>
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary)">78%</span>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin:2px 0 0">Right</p>
+    </div>
+
+    <div style="text-align:center">
+      <svg width="56" height="70" viewBox="0 0 56 70">
+        <rect x="13" y="18" width="30" height="34" rx="10" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width="1"/>
+        <rect x="21" y="12" width="14" height="10" rx="3" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width="1"/>
+      </svg>
+      <div id="case-batt" style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:6px;opacity:0;transition:opacity .4s ease">
+        <i class="ti ti-battery-2" style="font-size:15px;color:var(--text-success)" aria-hidden="true"></i>
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary)">54%</span>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin:2px 0 0">Case</p>
+    </div>
+
+  </div>
+
+</div>
+</div>
+<script>
+setTimeout(() => {
+  document.getElementById('title').textContent = "Aria's Earbuds Pro";
+  document.getElementById('left-batt').style.opacity = '1';
+  document.getElementById('right-batt').style.opacity = '1';
+  document.getElementById('case-batt').style.opacity = '1';
+}, 1300);
+</script>

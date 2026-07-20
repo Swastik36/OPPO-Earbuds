@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #101010;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  }
+  .card {
+    width: 336px;
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 22px 22px 26px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+  }
+  .row-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom: 26px; }
+  .title-block .title { font-size:17px; font-weight:600; margin:0; color:#111; letter-spacing:-0.2px; }
+  .title-block .subtitle { font-size:12px; color:#8a8a8e; margin:2px 0 0; }
+  .close-btn {
+    width: 24px; height: 24px; border-radius: 50%;
+    background:#f0f0f2; display:flex; align-items:center; justify-content:center;
+    font-size: 11px; color:#8a8a8e; flex-shrink:0; cursor:pointer;
+  }
+  .items { display:flex; justify-content:space-between; align-items:flex-start; padding:0 4px; }
+  .item { text-align:center; flex:1; }
+  .icon-wrap {
+    height: 64px; display:flex; align-items:flex-end; justify-content:center;
+  }
+  .batt-row { display:flex; align-items:center; justify-content:center; gap:5px; margin-top:10px; opacity:0; transition: opacity .45s ease; }
+  .batt-shell {
+    width: 20px; height: 10px; border: 1.4px solid #34c759; border-radius: 3px; position: relative;
+  }
+  .batt-shell::after {
+    content:""; position:absolute; right:-4px; top:2.5px; width:2.5px; height:5px;
+    background:#34c759; border-radius:0 1px 1px 0;
+  }
+  .batt-fill { position:absolute; top:1.5px; left:1.5px; bottom:1.5px; background:#34c759; border-radius:1px; }
+  .batt-fill.low { background:#ff9500; }
+  .bolt { font-size:10px; color:#34c759; margin-right:-2px; }
+  .pct { font-size:13px; font-weight:600; color:#1c1c1e; font-variant-numeric: tabular-nums; }
+  .label { font-size:11px; color:#a0a0a5; margin: 3px 0 0; font-weight:500; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="row-top">
+    <div class="title-block">
+      <p class="title" id="title">Connecting…</p>
+      <p class="subtitle" id="subtitle">&nbsp;</p>
+    </div>
+    <div class="close-btn">&#10005;</div>
+  </div>
+
+  <div class="items">
+
+    <div class="item">
+      <div class="icon-wrap">
+        <svg width="34" height="58" viewBox="0 0 34 58">
+          <path d="M17 2 C24 2 28 8 28 16 C28 22 25 25 25 30 L25 46 C25 52 21 56 17 56 C13 56 9 52 9 46 L9 30 C9 25 6 22 6 16 C6 8 10 2 17 2 Z"
+                fill="#f2f2f4" stroke="#d5d5d8" stroke-width="1"/>
+          <ellipse cx="17" cy="15" rx="7" ry="9" fill="#e4e4e7"/>
+        </svg>
+      </div>
+      <div class="batt-row" id="left-batt">
+        <span class="batt-shell"><span class="batt-fill" style="width:15px"></span></span>
+        <span class="pct">82%</span>
+      </div>
+      <p class="label">Left</p>
+    </div>
+
+    <div class="item">
+      <div class="icon-wrap">
+        <svg width="34" height="58" viewBox="0 0 34 58">
+          <path d="M17 2 C24 2 28 8 28 16 C28 22 25 25 25 30 L25 46 C25 52 21 56 17 56 C13 56 9 52 9 46 L9 30 C9 25 6 22 6 16 C6 8 10 2 17 2 Z"
+                fill="#f2f2f4" stroke="#d5d5d8" stroke-width="1"/>
+          <ellipse cx="17" cy="15" rx="7" ry="9" fill="#e4e4e7"/>
+        </svg>
+      </div>
+      <div class="batt-row" id="right-batt">
+        <span class="batt-shell"><span class="batt-fill" style="width:14px"></span></span>
+        <span class="pct">78%</span>
+      </div>
+      <p class="label">Right</p>
+    </div>
+
+    <div class="item">
+      <div class="icon-wrap">
+        <svg width="42" height="58" viewBox="0 0 42 58">
+          <rect x="6" y="16" width="30" height="38" rx="13" fill="#f2f2f4" stroke="#d5d5d8" stroke-width="1"/>
+          <rect x="15" y="8" width="12" height="12" rx="3" fill="#f2f2f4" stroke="#d5d5d8" stroke-width="1"/>
+          <line x1="6" y1="35" x2="36" y2="35" stroke="#e2e2e5" stroke-width="1"/>
+        </svg>
+      </div>
+      <div class="batt-row" id="case-batt">
+        <span class="bolt">&#9889;</span>
+        <span class="batt-shell"><span class="batt-fill low" style="width:9px"></span></span>
+        <span class="pct">54%</span>
+      </div>
+      <p class="label">Case</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+setTimeout(function () {
+  document.getElementById('title').textContent = "Aria's Earbuds Pro";
+  document.getElementById('subtitle').textContent = "Connected";
+  document.getElementById('left-batt').style.opacity = '1';
+  document.getElementById('right-batt').style.opacity = '1';
+  document.getElementById('case-batt').style.opacity = '1';
+}, 1200);
+</script>
+
+</body>
+</html>

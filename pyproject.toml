@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oppo-control"
+version = "0.1.0"
+description = "Fully open-source Linux companion library and CLI driver for the OPPO Enco Buds3 Pro"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: System :: Hardware :: Hardware Drivers"
+]
+dependencies = [
+    "dbus-next>=0.2.3"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.20.0"
+]
+
+[project.scripts]
+oppoctl = "oppo_control.cli:main"
+oppogui = "oppo_control.gui:main"

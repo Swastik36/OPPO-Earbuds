@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=OPPO Linux Companion
+Comment=Manage battery, EQ, and settings for OPPO/OnePlus/Realme wireless earbuds
+Exec=/home/swastik/new-project/oppo gui/.venv/bin/oppogui
+Icon=audio-headset
+Type=Application
+Terminal=false
+Categories=Settings;HardwareSettings;Qt;
+StartupNotify=true
