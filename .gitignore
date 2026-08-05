@@ -8,3 +8,7 @@ build/
 dist/
 output/
 .DS_Store
+
+# Phone dumps (contain secrets) — never commit
+bugreport-*/
+captures/bugreport_*.zip
