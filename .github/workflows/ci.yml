@@ -23,7 +23,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt update
-          sudo apt install -y libxcb-cursor0 libxkbcommon-x11-0 libdbus-1-dev libglib2.0-dev dbus
+          sudo apt install -y libxcb-cursor0 libxkbcommon-x11-0 libdbus-1-dev libglib2.0-dev libegl1 libgl1 dbus
 
       - name: Install Project & Dependencies
         run: |
