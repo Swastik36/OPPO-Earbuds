@@ -446,29 +446,31 @@ DARK_STYLESHEET = """
     QMainWindow {
         background-color: #121212;
     }
-    QWidget#sidebar-widget {
+    QWidget#top-header-widget {
         background-color: #181818;
-        border-right: 0.5px solid #282828;
+        border-bottom: 0.5px solid #282828;
     }
-    QListWidget {
-        background-color: transparent;
-        border: none;
+    QListWidget#top-nav-list {
+        background-color: #121212;
+        border: 0.5px solid #282828;
+        border-radius: 17px;
+        padding: 2px;
+    }
+    QListWidget#top-nav-list::item {
+        padding: 4px 14px;
+        border-radius: 13px;
+        margin: 0 2px;
         color: #888888;
         font-family: 'DejaVu Sans', sans-serif;
         font-size: 11px;
         font-weight: bold;
     }
-    QListWidget::item {
-        padding: 10px 14px;
-        border-radius: 6px;
-        margin-bottom: 4px;
-    }
-    QListWidget::item:selected {
+    QListWidget#top-nav-list::item:selected {
         background-color: #262626;
-        color: #FFFFFF;
+        color: #30D158;
     }
-    QListWidget::item:hover {
-        background-color: #202020;
+    QListWidget#top-nav-list::item:hover {
+        background-color: #1E1E1E;
         color: #CCCCCC;
     }
     QFrame#card {
@@ -587,28 +589,30 @@ LIGHT_STYLESHEET = """
     QMainWindow {
         background-color: #F5F5F7;
     }
-    QWidget#sidebar-widget {
+    QWidget#top-header-widget {
         background-color: #EAEAEA;
-        border-right: 0.5px solid #DCDCE0;
+        border-bottom: 0.5px solid #DCDCE0;
     }
-    QListWidget {
-        background-color: transparent;
-        border: none;
+    QListWidget#top-nav-list {
+        background-color: #F5F5F7;
+        border: 0.5px solid #D2D2D7;
+        border-radius: 17px;
+        padding: 2px;
+    }
+    QListWidget#top-nav-list::item {
+        padding: 4px 14px;
+        border-radius: 13px;
+        margin: 0 2px;
         color: #666666;
         font-family: 'DejaVu Sans', sans-serif;
         font-size: 11px;
         font-weight: bold;
     }
-    QListWidget::item {
-        padding: 10px 14px;
-        border-radius: 6px;
-        margin-bottom: 4px;
+    QListWidget#top-nav-list::item:selected {
+        background-color: #FFFFFF;
+        color: #34C759;
     }
-    QListWidget::item:selected {
-        background-color: #D2D2D7;
-        color: #000000;
-    }
-    QListWidget::item:hover {
+    QListWidget#top-nav-list::item:hover {
         background-color: #E3E3E8;
         color: #333333;
     }
@@ -732,29 +736,33 @@ class MainWindow(QMainWindow):
         self.theme_mode = "dark"
 
         self.setWindowTitle("OPPO Linux Companion")
-        self.setFixedSize(620, 500)
+        self.setMinimumSize(660, 520)
+        self.resize(700, 540)
 
-        # Main Layout
+        # Main Layout (Vertical: Top Header Bar + Page Stack)
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        layout = QHBoxLayout(central_widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # 1. Sidebar Navigation
-        sidebar_widget = QWidget()
-        sidebar_widget.setObjectName("sidebar-widget")
-        sidebar_widget.setFixedWidth(160)
-        sidebar_layout = QVBoxLayout(sidebar_widget)
-        sidebar_layout.setContentsMargins(10, 20, 10, 20)
+        # 1. Top Header Navigation Bar
+        top_header_widget = QWidget()
+        top_header_widget.setObjectName("top-header-widget")
+        top_header_layout = QHBoxLayout(top_header_widget)
+        top_header_layout.setContentsMargins(16, 8, 16, 8)
+        top_header_layout.setSpacing(12)
 
         app_title = QLabel("OPPO Companion")
         app_title.setFont(QFont("DejaVu Sans", 11, QFont.Bold))
-        app_title.setStyleSheet("margin-bottom: 20px; padding-left: 6px;")
-        sidebar_layout.addWidget(app_title)
+        top_header_layout.addWidget(app_title)
+
+        top_header_layout.addStretch()
 
         self.sidebar = QListWidget()
+        self.sidebar.setObjectName("top-nav-list")
+        self.sidebar.setFlow(QListWidget.LeftToRight)
         self.sidebar.addItem("Dashboard")
         self.sidebar.addItem("Gestures")
         self.sidebar.addItem("Settings")
@@ -763,31 +771,32 @@ class MainWindow(QMainWindow):
         self.sidebar.currentRowChanged.connect(self._on_navigation_changed)
         self.sidebar.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        sidebar_layout.addWidget(self.sidebar)
-        
-        sidebar_layout.addStretch()
+        self.sidebar.setFixedHeight(34)
+        top_header_layout.addWidget(self.sidebar)
 
-        # Manual Connect/Disconnect control
-        self.connect_btn = QPushButton("Connect")
-        self.connect_btn.clicked.connect(self._on_connect_button_clicked)
-        sidebar_layout.addWidget(self.connect_btn)
+        top_header_layout.addStretch()
 
+        # Status & Connection Controls (Right)
         status_layout = QHBoxLayout()
-        status_layout.setContentsMargins(6, 0, 6, 0)
+        status_layout.setSpacing(4)
         self.status_dot = QLabel("●")
-        self.status_dot.setStyleSheet("color: #D32F2F; font-size: 14px;")
+        self.status_dot.setStyleSheet("color: #D32F2F; font-size: 13px;")
         status_layout.addWidget(self.status_dot)
         self.status_lbl = QLabel("Offline")
         self.status_lbl.setStyleSheet("color: #888888; font-size: 10px;")
         status_layout.addWidget(self.status_lbl)
-        status_layout.addStretch()
-        sidebar_layout.addLayout(status_layout)
+        top_header_layout.addLayout(status_layout)
 
-        layout.addWidget(sidebar_widget)
+        self.connect_btn = QPushButton("Connect")
+        self.connect_btn.setMinimumWidth(84)
+        self.connect_btn.clicked.connect(self._on_connect_button_clicked)
+        top_header_layout.addWidget(self.connect_btn)
+
+        main_layout.addWidget(top_header_widget)
 
         # 2. Page Stack
         self.stacked_pages = QStackedWidget()
-        layout.addWidget(self.stacked_pages)
+        main_layout.addWidget(self.stacked_pages)
 
         # Initialize state-tracking for verified non-optimistic updates
         self._confirmed_eq = 0
