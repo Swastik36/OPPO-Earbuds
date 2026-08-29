@@ -32,6 +32,13 @@ echo "[4/5] Installing package and dependencies..."
 "$INSTALL_DIR/.venv/bin/pip" install --upgrade pip -q
 "$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR" -q
 
+# Ensure libxcb-cursor is available for Qt 6.5+ XCB plugin
+if ! ldconfig -p 2>/dev/null | grep -q "libxcb-cursor.so.0"; then
+    if [ -f "$HOME/.local/lib/libxcb-cursor.so.0" ]; then
+        cp "$HOME/.local/lib/libxcb-cursor.so"* "$INSTALL_DIR/.venv/lib/python"*/site-packages/PySide6/Qt/lib/ 2>/dev/null || true
+    fi
+fi
+
 echo "[5/5] Creating executable symlinks and desktop launcher..."
 ln -sf "$INSTALL_DIR/.venv/bin/oppoctl" "$BIN_DIR/oppoctl"
 ln -sf "$INSTALL_DIR/.venv/bin/oppogui" "$BIN_DIR/oppogui"
