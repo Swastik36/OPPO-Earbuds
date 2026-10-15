@@ -7,20 +7,72 @@ os.environ["LC_CTYPE"] = "C.UTF-8"
 import sys
 import logging
 import asyncio
+import math
 import time
-from PySide6.QtCore import Qt, QThread, Signal, Slot, QSize, QRectF
+from typing import Dict, List, Optional
+from PySide6.QtCore import (
+    Qt, QThread, Signal, Slot, QSize, QRectF, QPointF, QSettings,
+    QPropertyAnimation, QEasingCurve,
+)
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QComboBox, QCheckBox, QPushButton, QFrame, QDialog,
     QScrollArea, QStackedWidget, QListWidget, QProgressBar, QSlider,
-    QButtonGroup, QTextEdit, QSizePolicy, QMessageBox
+    QButtonGroup, QTextEdit, QSizePolicy, QMessageBox, QMenu,
+    QSystemTrayIcon, QStyle, QBoxLayout
 )
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon, QPainterPath
+from PySide6.QtGui import (
+    QPainter, QColor, QPen, QBrush, QFont, QIcon, QPainterPath, QAction,
+    QPixmap,
+)
 
 from .device import OppoDevice, get_friendly_description
 from .commands import EQPreset, EarbudsBattery, TouchGesture
 from .protocol import OppoFrame
 from .exceptions import OppoConnectionError
+
+# App identity (QSettings persistence) + connection defaults.
+# The MAC below is only the last-resort fallback: --mac flag wins,
+# then the remembered value in QSettings, then this constant.
+ORG_NAME = "Swastik36"
+APP_NAME = "OPPOCompanion"
+DEFAULT_MAC = "60:55:56:22:49:A0"
+
+# Gesture function IDs (mirrors TouchGesture func map in commands.py).
+GESTURE_FUNCTIONS: Dict[int, str] = {
+    0x00: "No Action",
+    0x01: "Play/Pause",
+    0x05: "Previous Track",
+    0x06: "Next Track",
+    0x0B: "Volume Down",
+    0x0C: "Volume Up",
+    0x1C: "Game Mode Toggle",
+}
+TRIGGER_NAMES = {
+    1: "Single Tap", 2: "Double Tap", 3: "Triple Tap",
+    4: "Long Press", 5: "Double & Hold", 6: "Slide",
+}
+
+# Coffee palette (Espresso Crema): shared by stylesheets + custom painters.
+COFFEE = {
+    "dark_bg": "#211510",
+    "dark_header": "#2B1B14",
+    "dark_card": "#33231A",
+    "dark_field": "#3A261D",
+    "dark_text": "#F3E7D6",
+    "dark_sub": "#C9B19C",
+    "light_bg": "#F6F1E7",
+    "light_card": "#FFFDF8",
+    "light_border": "#E3D5C0",
+    "light_text": "#3A241D",
+    "light_sub": "#8B6A55",
+    "accent": "#D9A441",
+    "accent_hi": "#E8B85C",
+    "accent_dim": "#A96B1F",
+    "ok": "#7FB069",
+    "warn": "#D9A441",
+    "err": "#C0564B",
+}
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,12 +81,13 @@ logger = logging.getLogger("oppo_control.gui")
 # --- Battery Shell Widget (Mockup v4 Style) ---
 
 class BatteryWidget(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, scale=1.0):
         super().__init__(parent)
         self.level = 0
         self.is_charging = False
         self.theme_mode = "dark"
-        self.setFixedSize(22, 12)
+        self.scale = scale
+        self.setFixedSize(int(22 * scale), int(12 * scale))
 
     def set_state(self, level, is_charging, theme_mode="dark"):
         self.level = max(0, min(100, level))
@@ -45,30 +98,34 @@ class BatteryWidget(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        
-        # Color matching based on status and theme
+        s = self.scale
+
+        # Coffee battery bands: warm red when low, caramel mid,
+        # leaf green at 90-100% (full feels rewarding).
         if self.level <= 20:
-            color = QColor(255, 149, 0) if self.theme_mode == "light" else QColor(255, 159, 10) # Orange/Red
+            color = QColor("#C0564B")
+        elif self.level >= 90:
+            color = QColor("#7FB069") if self.theme_mode == "dark" else QColor("#5F8F52")
         else:
-            color = QColor(52, 199, 89) if self.theme_mode == "light" else QColor(48, 209, 88) # Green
-            
+            color = QColor("#D9A441") if self.theme_mode == "dark" else QColor("#A96B1F")
+
         # Draw battery border
-        pen = QPen(color, 1.4)
+        pen = QPen(color, 1.4 * s)
         painter.setPen(pen)
         painter.setBrush(Qt.NoBrush)
         # Rect for battery shell
-        painter.drawRoundedRect(1, 1, 16, 10, 2, 2)
-        
+        painter.drawRoundedRect(int(1 * s), int(1 * s), int(16 * s), int(10 * s), 2 * s, 2 * s)
+
         # Draw dynamic fill
         painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(color))
-        
-        fill_w = max(0, min(12, int(12 * (self.level / 100.0))))
+
+        fill_w = max(0, min(12 * s, int(12 * s * (self.level / 100.0))))
         if fill_w > 0:
-            painter.drawRect(3, 3, fill_w, 6)
-            
+            painter.drawRect(int(3 * s), int(3 * s), int(fill_w), int(6 * s))
+
         # Draw the right battery tip
-        painter.drawRoundedRect(QRectF(18, 4, 2, 4), 0.5, 0.5)
+        painter.drawRoundedRect(QRectF(18 * s, 4 * s, 2 * s, 4 * s), 0.5 * s, 0.5 * s)
 
 
 # --- Custom Vector Silhouettes Widget (Mockup v4 Style) ---
@@ -80,7 +137,12 @@ class SilhouetteWidget(QWidget):
         self.battery_level = 0
         self.is_charging = False
         self.is_connected = False
+        self.theme_mode = "dark"
         self.setMinimumSize(70, 90)
+
+    def set_theme(self, theme_mode: str):
+        # Silhouettes stay cream-white in every theme by design.
+        self.update()
 
     def update_state(self, is_connected, level=0, is_charging=False):
         self.is_connected = is_connected
@@ -92,8 +154,7 @@ class SilhouetteWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # In v4, the earbud icons stay light/white regardless of theme, but they have subtle gradients/colors.
-        # If disconnected/offline, we draw them with lower opacity.
+        # Cream-white buds on every theme; disconnected dims via opacity.
         if self.is_connected:
             painter.setOpacity(1.0)
             fill_color = QColor("#f5f5f7")
@@ -165,6 +226,182 @@ class SilhouetteWidget(QWidget):
             painter.drawLine(6, 35, 36, 35)
 
 
+# --- Hand-drawn vector tab icons (no emoji, no assets) ---
+
+def paint_tab_icon(kind: str, color: QColor, size: int = 20) -> QIcon:
+    """Minimal 2px line icon for the compact nav bar."""
+    pix = QPixmap(size, size)
+    pix.fill(Qt.transparent)
+    p = QPainter(pix)
+    p.setRenderHint(QPainter.Antialiasing)
+    pen = QPen(color, 1.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+    c = size / 2.0
+
+    if kind == "dashboard":
+        m, gap = 3.0, 2.0
+        cell = (size - 2 * m - gap) / 2
+        for ix in (m, m + cell + gap):
+            for iy in (m, m + cell + gap):
+                p.setPen(pen)
+                p.setBrush(Qt.NoBrush)
+                p.drawRoundedRect(QRectF(ix, iy, cell, cell), 1.5, 1.5)
+    elif kind == "gestures":
+        p.setPen(Qt.NoPen)
+        p.setBrush(QBrush(color))
+        p.drawEllipse(QPointF(c, c), 2.2, 2.2)
+        p.setPen(pen)
+        p.setBrush(Qt.NoBrush)
+        p.drawArc(QRectF(c - 5.5, c - 5.5, 11, 11), 0, 360 * 16)
+        p.drawArc(QRectF(c - 8, c - 8, 16, 16), 30 * 16, 300 * 16)
+    elif kind == "settings":
+        p.setPen(pen)
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(QPointF(c, c), 4.0, 4.0)
+        for k in range(8):
+            a = math.radians(k * 45)
+            p.drawLine(
+                QPointF(c + 5.5 * math.cos(a), c + 5.5 * math.sin(a)),
+                QPointF(c + 8.0 * math.cos(a), c + 8.0 * math.sin(a)),
+            )
+        p.setPen(Qt.NoPen)
+        p.setBrush(QBrush(color))
+        p.drawEllipse(QPointF(c, c), 1.6, 1.6)
+    elif kind == "dev":
+        p.setPen(pen)
+        p.setBrush(Qt.NoBrush)
+        left, right = c - 5, c + 5
+        p.drawLine(QPointF(left + 3, c - 4), QPointF(left - 1, c))
+        p.drawLine(QPointF(left - 1, c), QPointF(left + 3, c + 4))
+        p.drawLine(QPointF(right - 3, c - 4), QPointF(right + 1, c))
+        p.drawLine(QPointF(right + 1, c), QPointF(right - 3, c + 4))
+        p.drawLine(QPointF(c + 1.5, c - 5), QPointF(c - 1.5, c + 5))
+    p.end()
+    return QIcon(pix)
+
+
+# --- Segmented Tabs (4 fixed pills, sliding active indicator, no scroll) ---
+
+class SegmentedTabs(QWidget):
+    """Four equal tabs with a caramel pill that slides to the active one.
+
+    Same navigation API as the QListWidget it replaced
+    (setCurrentRow / currentChanged) so callers stay untouched.
+    """
+
+    currentChanged = Signal(int)
+
+    def __init__(self, labels, icons=None, parent=None):
+        super().__init__(parent)
+        self.setObjectName("top-nav-list")
+        self._labels = list(labels)
+        self._icons = list(icons) if icons else [None] * len(labels)
+        self._current = 0
+        self._compact = False
+        self._active_color = QColor("#211510")
+        self._inactive_color = QColor("#C9B19C")
+        self._anim = None
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(0)
+
+        self._buttons = []
+        for idx, text in enumerate(labels):
+            btn = QPushButton(text)
+            btn.setObjectName("nav-tab")
+            btn.setCheckable(True)
+            btn.setAutoExclusive(True)
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setFocusPolicy(Qt.NoFocus)
+            btn.setIconSize(QSize(18, 18))
+            btn.clicked.connect(lambda _checked=False, i=idx: self.setCurrentRow(i))
+            lay.addWidget(btn)
+            self._buttons.append(btn)
+        self._buttons[0].setChecked(True)
+
+        self._indicator = QWidget(self)
+        self._indicator.setObjectName("nav-indicator")
+        self._indicator.lower()
+
+    def count(self) -> int:
+        return len(self._buttons)
+
+    def currentRow(self) -> int:
+        return self._current
+
+    def setCurrentRow(self, row: int):
+        row = max(0, min(row, len(self._buttons) - 1))
+        if row == self._current:
+            self._snap_indicator()
+            return
+        self._current = row
+        for i, btn in enumerate(self._buttons):
+            btn.blockSignals(True)
+            btn.setChecked(i == row)
+            btn.blockSignals(False)
+        self._refresh_tabs()
+        self._animate_indicator()
+        self.currentChanged.emit(row)
+
+    def set_compact(self, compact: bool):
+        """Icon-only pills when True, text pills when False."""
+        if compact != self._compact:
+            self._compact = compact
+            self._refresh_tabs()
+
+    def set_colors(self, active: QColor, inactive: QColor):
+        """Icon tones: active sits on the caramel pill, inactive on the bar."""
+        self._active_color = active
+        self._inactive_color = inactive
+        self._refresh_tabs()
+
+    def _refresh_tabs(self):
+        for i, btn in enumerate(self._buttons):
+            kind = self._icons[i] if i < len(self._icons) else None
+            if self._compact and kind:
+                btn.setText("")
+                color = self._active_color if i == self._current else self._inactive_color
+                btn.setIcon(paint_tab_icon(kind, color))
+                btn.setToolTip(self._labels[i])
+            else:
+                btn.setText(self._labels[i])
+                btn.setIcon(QIcon())
+                btn.setToolTip("")
+
+    def _indicator_rect(self) -> "QRect":
+        from PySide6.QtCore import QRect
+        btn = self._buttons[self._current]
+        return QRect(btn.x(), 4, btn.width(), max(0, self.height() - 8))
+
+    def _snap_indicator(self):
+        if self._anim is not None:
+            self._anim.stop()
+        self._indicator.setGeometry(self._indicator_rect())
+
+    def _animate_indicator(self):
+        # Tabs are equal-width by construction, so only the position ever
+        # changes — animating `pos` (never `geometry`) avoids stretch jank.
+        if self._anim is not None:
+            self._anim.stop()
+        target = self._indicator_rect()
+        self._indicator.resize(target.width(), target.height())
+        self._anim = QPropertyAnimation(self._indicator, b"pos", self)
+        self._anim.setDuration(220)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim.setStartValue(self._indicator.pos())
+        self._anim.setEndValue(target.topLeft())
+        self._anim.start()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._snap_indicator()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._snap_indicator()
+
+
 # --- Asynchronous Worker Thread ---
 
 class OppoDeviceWorker(QThread):
@@ -184,7 +421,7 @@ class OppoDeviceWorker(QThread):
     MAX_AUTO_RETRIES = 3
     RETRY_BACKOFF_SECONDS = 2  # multiplied by attempt number: 2s, 4s, 6s...
 
-    def __init__(self, mac_address="60:55:56:22:49:A0"):
+    def __init__(self, mac_address=DEFAULT_MAC):
         super().__init__()
         self.mac_address = mac_address
         self.loop = None
@@ -193,6 +430,7 @@ class OppoDeviceWorker(QThread):
         self.trace_mode = False
         self._retry_count = 0
         self._connect_event = None  # created once the event loop exists
+        self._auto_connect = True  # connect once on startup without a click
 
     def run(self):
         self.loop = asyncio.new_event_loop()
@@ -207,6 +445,10 @@ class OppoDeviceWorker(QThread):
         # again after auto-retries are exhausted. Set (not cleared) whenever
         # we're allowed to try connecting right now.
         self._connect_event = asyncio.Event()
+        if self._auto_connect:
+            # Fresh launch: try the remembered device immediately so the app
+            # shows live data instead of waiting for a click.
+            self._connect_event.set()
 
         async def main_task():
             while self._running:
@@ -321,6 +563,10 @@ class OppoDeviceWorker(QThread):
             asyncio.run_coroutine_threadsafe(_shutdown(), self.loop)
 
     # Manual connect/disconnect control (called from the GUI thread)
+    def set_auto_connect(self, enable: bool):
+        """Connect once on worker startup (True) or wait for a click (False)."""
+        self._auto_connect = enable
+
     def request_connect(self):
         """Reset the retry budget and allow the main loop to attempt a connection."""
         if self.loop and self._connect_event:
@@ -436,6 +682,30 @@ class OppoDeviceWorker(QThread):
         if self.loop:
             asyncio.run_coroutine_threadsafe(fetch(), self.loop)
 
+    def save_gestures(self, gestures):
+        """Write an edited gesture map back to the buds, then re-read it."""
+        if self.device and self.loop:
+            async def _task():
+                try:
+                    await self.device.set_gestures(gestures)
+                    updated = await self.device.get_gestures()
+                    self.gestures_updated.emit(updated)
+                except Exception as e:
+                    logger.error(f"Error saving gestures: {e}")
+                    self.error_occurred.emit(f"Failed to save gestures: {e}")
+            asyncio.run_coroutine_threadsafe(_task(), self.loop)
+
+    def set_anc_mode(self, mode: str):
+        """ANC via the worker so failures surface in the UI, not the void."""
+        if self.device and self.loop:
+            async def _task():
+                try:
+                    await self.device.set_anc_mode(mode)
+                except Exception as e:
+                    logger.error(f"Error setting ANC mode: {e}")
+                    self.error_occurred.emit(f"Failed to set ANC mode: {e}")
+            asyncio.run_coroutine_threadsafe(_task(), self.loop)
+
 
 # --- Stylesheets ---
 
@@ -444,170 +714,189 @@ DARK_STYLESHEET = """
         font-family: 'DejaVu Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
     QMainWindow {
-        background-color: #0D1117;
+        background-color: #211510;
     }
     QWidget#top-header-widget {
-        background-color: #0F141C;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        background-color: #2B1B14;
+        border-bottom: 1px solid rgba(243, 231, 214, 0.08);
     }
-    QListWidget#top-nav-list {
-        background-color: #161B22;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+    QWidget#top-nav-list {
+        background-color: #33231A;
+        border: 1px solid rgba(243, 231, 214, 0.12);
         border-radius: 18px;
-        padding: 3px 6px;
     }
-    QListWidget#top-nav-list::item {
-        padding: 5px 15px;
+    QPushButton#nav-tab {
+        background: transparent;
+        border: none;
         border-radius: 13px;
-        margin: 0 3px;
-        color: #94A3B8;
+        padding: 5px 6px;
+        color: #C9B19C;
         font-size: 11px;
         font-weight: 600;
     }
-    QListWidget#top-nav-list::item:selected {
-        background-color: #10B981;
-        color: #FFFFFF;
+    QPushButton#nav-tab:checked {
         font-weight: 700;
-        border: 1px solid #10B981;
+        color: #211510;
     }
-    QListWidget#top-nav-list::item:hover:!selected {
-        background-color: rgba(255, 255, 255, 0.08);
-        color: #FFFFFF;
+    QPushButton#nav-tab:hover:!checked {
+        color: #F3E7D6;
+    }
+    QWidget#nav-indicator {
+        background-color: #D9A441;
+        border: 1px solid #D9A441;
+        border-radius: 13px;
     }
     QFrame#card {
-        background-color: #161B22;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background-color: #33231A;
+        border: 1px solid rgba(243, 231, 214, 0.09);
         border-radius: 14px;
     }
     QLabel {
-        color: #F0F6FC;
+        color: #F3E7D6;
     }
     QLabel#section-title {
         font-size: 12px;
         font-weight: 700;
-        color: #F0F6FC;
+        color: #F3E7D6;
         letter-spacing: 0.2px;
     }
     QLabel#section-subtitle {
         font-size: 11px;
-        color: #8B949E;
+        color: #C9B19C;
     }
     QComboBox {
-        background-color: #21262D;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        background-color: #3A261D;
+        border: 1px solid rgba(243, 231, 214, 0.14);
         border-radius: 8px;
         padding: 5px 10px;
-        color: #F0F6FC;
+        color: #F3E7D6;
         font-size: 11px;
         font-weight: 500;
     }
     QComboBox:hover {
-        border: 1px solid rgba(16, 185, 129, 0.5);
-        background-color: #282E37;
+        border: 1px solid rgba(217, 164, 65, 0.6);
+        background-color: #453022;
     }
     QComboBox::drop-down {
         border: none;
         width: 18px;
     }
     QComboBox QAbstractItemView {
-        background-color: #161B22;
-        color: #F0F6FC;
-        selection-background-color: rgba(16, 185, 129, 0.2);
-        selection-color: #10B981;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        background-color: #33231A;
+        color: #F3E7D6;
+        selection-background-color: rgba(217, 164, 65, 0.25);
+        selection-color: #E8B85C;
+        border: 1px solid rgba(243, 231, 214, 0.14);
         border-radius: 8px;
         padding: 4px;
     }
     QCheckBox {
         spacing: 10px;
-        color: #F0F6FC;
+        color: #F3E7D6;
         font-weight: 500;
     }
     QCheckBox::indicator {
         width: 17px;
         height: 17px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
+        border: 1px solid rgba(243, 231, 214, 0.22);
         border-radius: 5px;
-        background-color: #21262D;
+        background-color: #3A261D;
     }
     QCheckBox::indicator:hover {
-        border: 1px solid #10B981;
+        border: 1px solid #D9A441;
     }
     QCheckBox::indicator:checked {
-        background-color: #10B981;
-        border: 1px solid #10B981;
+        background-color: #D9A441;
+        border: 1px solid #D9A441;
     }
     QPushButton {
-        background-color: #21262D;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: #3A261D;
+        border: 1px solid rgba(243, 231, 214, 0.12);
         border-radius: 8px;
         padding: 6px 14px;
-        color: #F0F6FC;
+        color: #F3E7D6;
         font-weight: 600;
         font-size: 11px;
     }
     QPushButton:hover {
-        background-color: #30363D;
-        border: 1px solid rgba(255, 255, 255, 0.18);
+        background-color: #4A3123;
+        border: 1px solid rgba(217, 164, 65, 0.5);
     }
     QPushButton:pressed {
-        background-color: #161B22;
+        background-color: #2B1B14;
     }
     QPushButton:checked {
-        background-color: #10B981;
-        color: #0D1117;
+        background-color: #D9A441;
+        color: #211510;
         font-weight: 700;
-        border: 1px solid #10B981;
+        border: 1px solid #D9A441;
     }
     QPushButton:disabled {
-        background-color: rgba(33, 38, 45, 0.5);
-        color: #6E7681;
-        border: 1px solid rgba(255, 255, 255, 0.04);
+        background-color: rgba(58, 38, 29, 0.5);
+        color: #8B6A55;
+        border: 1px solid rgba(243, 231, 214, 0.05);
+    }
+    QPushButton#primary-btn {
+        background-color: #D9A441;
+        color: #211510;
+        border: 1px solid #D9A441;
+        font-weight: 700;
+    }
+    QPushButton#primary-btn:hover {
+        background-color: #E8B85C;
+        border: 1px solid #E8B85C;
+    }
+    QPushButton#danger-btn {
+        background-color: #C0564B;
+        border: 1px solid #C0564B;
+        color: #FFF6EC;
     }
     QProgressBar {
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(243, 231, 214, 0.1);
         border-radius: 5px;
         text-align: center;
-        background-color: #0D1117;
-        color: #F0F6FC;
+        background-color: #211510;
+        color: #F3E7D6;
         font-size: 9px;
         height: 12px;
     }
     QProgressBar::chunk {
-        background-color: #10B981;
+        background-color: #D9A441;
         border-radius: 4px;
     }
     QSlider::groove:horizontal {
         border: none;
         height: 6px;
-        background: #21262D;
+        background: #3A261D;
         border-radius: 3px;
     }
     QSlider::handle:horizontal {
-        background: #10B981;
-        border: 2px solid #0D1117;
+        background: #D9A441;
+        border: 2px solid #211510;
         width: 16px;
         height: 16px;
         margin: -5px 0;
         border-radius: 8px;
     }
     QSlider::handle:horizontal:hover {
-        background: #34D399;
-        transform: scale(1.1);
+        background: #E8B85C;
     }
     QTextEdit {
-        background-color: #0D1117;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        color: #10B981;
+        background-color: #211510;
+        border: 1px solid rgba(243, 231, 214, 0.1);
+        color: #D9A441;
         font-family: 'JetBrains Mono', 'Fira Code', 'monospace';
         font-size: 11px;
         border-radius: 10px;
         padding: 8px;
     }
-    QScrollArea {
-        border: 1px solid rgba(255, 255, 255, 0.07);
-        background-color: #161B22;
+    QScrollArea#gesture-scroll {
+        border: 1px solid rgba(243, 231, 214, 0.08);
+        background-color: #2B1B14;
         border-radius: 12px;
+    }
+    QWidget#gesture-content {
+        background: transparent;
     }
     /* Modern Slim Faded Scrollbars */
     QScrollBar:vertical {
@@ -617,12 +906,12 @@ DARK_STYLESHEET = """
         margin: 4px 2px 4px 2px;
     }
     QScrollBar::handle:vertical {
-        background: rgba(255, 255, 255, 0.16);
+        background: rgba(217, 164, 65, 0.25);
         min-height: 24px;
         border-radius: 3px;
     }
     QScrollBar::handle:vertical:hover {
-        background: rgba(255, 255, 255, 0.35);
+        background: rgba(217, 164, 65, 0.5);
     }
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
         height: 0px;
@@ -638,12 +927,12 @@ DARK_STYLESHEET = """
         margin: 2px 4px 2px 4px;
     }
     QScrollBar::handle:horizontal {
-        background: rgba(255, 255, 255, 0.16);
+        background: rgba(217, 164, 65, 0.25);
         min-width: 24px;
         border-radius: 3px;
     }
     QScrollBar::handle:horizontal:hover {
-        background: rgba(255, 255, 255, 0.35);
+        background: rgba(217, 164, 65, 0.5);
     }
     QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         width: 0px;
@@ -659,169 +948,189 @@ LIGHT_STYLESHEET = """
         font-family: 'DejaVu Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
     QMainWindow {
-        background-color: #F8FAFC;
+        background-color: #F6F1E7;
     }
     QWidget#top-header-widget {
-        background-color: #FFFFFF;
-        border-bottom: 1px solid #E2E8F0;
+        background-color: #FFFDF8;
+        border-bottom: 1px solid #E3D5C0;
     }
-    QListWidget#top-nav-list {
-        background-color: #F1F5F9;
-        border: 1px solid #CBD5E1;
+    QWidget#top-nav-list {
+        background-color: #EFE4D2;
+        border: 1px solid #D9C6A9;
         border-radius: 18px;
-        padding: 3px 6px;
     }
-    QListWidget#top-nav-list::item {
-        padding: 5px 15px;
+    QPushButton#nav-tab {
+        background: transparent;
+        border: none;
         border-radius: 13px;
-        margin: 0 3px;
-        color: #64748B;
+        padding: 5px 6px;
+        color: #8B6A55;
         font-size: 11px;
         font-weight: 600;
     }
-    QListWidget#top-nav-list::item:selected {
-        background-color: #059669;
-        color: #FFFFFF;
+    QPushButton#nav-tab:checked {
         font-weight: 700;
-        border: 1px solid #059669;
+        color: #FFFDF8;
     }
-    QListWidget#top-nav-list::item:hover:!selected {
-        background-color: #E2E8F0;
-        color: #0F172A;
+    QPushButton#nav-tab:hover:!checked {
+        color: #3A241D;
+    }
+    QWidget#nav-indicator {
+        background-color: #A96B1F;
+        border: 1px solid #A96B1F;
+        border-radius: 13px;
     }
     QFrame#card {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
+        background-color: #FFFDF8;
+        border: 1px solid #E3D5C0;
         border-radius: 14px;
     }
     QLabel {
-        color: #0F172A;
+        color: #3A241D;
     }
     QLabel#section-title {
         font-size: 12px;
         font-weight: 700;
-        color: #0F172A;
+        color: #3A241D;
         letter-spacing: 0.2px;
     }
     QLabel#section-subtitle {
         font-size: 11px;
-        color: #64748B;
+        color: #8B6A55;
     }
     QComboBox {
-        background-color: #F8FAFC;
-        border: 1px solid #CBD5E1;
+        background-color: #FFFFFF;
+        border: 1px solid #D9C6A9;
         border-radius: 8px;
         padding: 5px 10px;
-        color: #0F172A;
+        color: #3A241D;
         font-size: 11px;
         font-weight: 500;
     }
     QComboBox:hover {
-        border: 1px solid #059669;
-        background-color: #FFFFFF;
+        border: 1px solid #A96B1F;
+        background-color: #FFFDF8;
     }
     QComboBox::drop-down {
         border: none;
         width: 18px;
     }
     QComboBox QAbstractItemView {
-        background-color: #FFFFFF;
-        color: #0F172A;
-        selection-background-color: rgba(5, 150, 105, 0.12);
-        selection-color: #059669;
-        border: 1px solid #E2E8F0;
+        background-color: #FFFDF8;
+        color: #3A241D;
+        selection-background-color: rgba(169, 107, 31, 0.14);
+        selection-color: #A96B1F;
+        border: 1px solid #E3D5C0;
         border-radius: 8px;
         padding: 4px;
     }
     QCheckBox {
         spacing: 10px;
-        color: #0F172A;
+        color: #3A241D;
         font-weight: 500;
     }
     QCheckBox::indicator {
         width: 17px;
         height: 17px;
-        border: 1px solid #CBD5E1;
+        border: 1px solid #D9C6A9;
         border-radius: 5px;
-        background-color: #F8FAFC;
+        background-color: #FFFFFF;
     }
     QCheckBox::indicator:hover {
-        border: 1px solid #059669;
+        border: 1px solid #A96B1F;
     }
     QCheckBox::indicator:checked {
-        background-color: #059669;
-        border: 1px solid #059669;
+        background-color: #A96B1F;
+        border: 1px solid #A96B1F;
     }
     QPushButton {
         background-color: #FFFFFF;
-        border: 1px solid #CBD5E1;
+        border: 1px solid #D9C6A9;
         border-radius: 8px;
         padding: 6px 14px;
-        color: #0F172A;
+        color: #3A241D;
         font-weight: 600;
         font-size: 11px;
     }
     QPushButton:hover {
-        background-color: #F1F5F9;
-        border: 1px solid #94A3B8;
+        background-color: #F6F1E7;
+        border: 1px solid #A96B1F;
     }
     QPushButton:pressed {
-        background-color: #E2E8F0;
+        background-color: #EFE4D2;
     }
     QPushButton:checked {
-        background-color: #059669;
-        color: #FFFFFF;
+        background-color: #A96B1F;
+        color: #FFFDF8;
         font-weight: 700;
-        border: 1px solid #059669;
+        border: 1px solid #A96B1F;
     }
     QPushButton:disabled {
-        background-color: #F8FAFC;
-        color: #94A3B8;
-        border: 1px solid #E2E8F0;
+        background-color: #F6F1E7;
+        color: #B8947B;
+        border: 1px solid #EFE4D2;
+    }
+    QPushButton#primary-btn {
+        background-color: #A96B1F;
+        color: #FFFDF8;
+        border: 1px solid #A96B1F;
+        font-weight: 700;
+    }
+    QPushButton#primary-btn:hover {
+        background-color: #8F5A19;
+        border: 1px solid #8F5A19;
+    }
+    QPushButton#danger-btn {
+        background-color: #C0564B;
+        border: 1px solid #C0564B;
+        color: #FFF6EC;
     }
     QProgressBar {
-        border: 1px solid #E2E8F0;
+        border: 1px solid #E3D5C0;
         border-radius: 5px;
         text-align: center;
-        background-color: #E2E8F0;
-        color: #0F172A;
+        background-color: #EFE4D2;
+        color: #3A241D;
         font-size: 9px;
         height: 12px;
     }
     QProgressBar::chunk {
-        background-color: #059669;
+        background-color: #A96B1F;
         border-radius: 4px;
     }
     QSlider::groove:horizontal {
         border: none;
         height: 6px;
-        background: #E2E8F0;
+        background: #EFE4D2;
         border-radius: 3px;
     }
     QSlider::handle:horizontal {
-        background: #059669;
-        border: 2px solid #FFFFFF;
+        background: #A96B1F;
+        border: 2px solid #FFFDF8;
         width: 16px;
         height: 16px;
         margin: -5px 0;
         border-radius: 8px;
     }
     QSlider::handle:horizontal:hover {
-        background: #10B981;
+        background: #8F5A19;
     }
     QTextEdit {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        color: #059669;
+        background-color: #FFFDF8;
+        border: 1px solid #E3D5C0;
+        color: #A96B1F;
         font-family: 'JetBrains Mono', 'Fira Code', 'monospace';
         font-size: 11px;
         border-radius: 10px;
         padding: 8px;
     }
-    QScrollArea {
-        border: 1px solid #E2E8F0;
-        background-color: #FFFFFF;
+    QScrollArea#gesture-scroll {
+        border: 1px solid #E3D5C0;
+        background-color: #F6F1E7;
         border-radius: 12px;
+    }
+    QWidget#gesture-content {
+        background: transparent;
     }
     /* Modern Slim Faded Scrollbars */
     QScrollBar:vertical {
@@ -831,12 +1140,12 @@ LIGHT_STYLESHEET = """
         margin: 4px 2px 4px 2px;
     }
     QScrollBar::handle:vertical {
-        background: rgba(0, 0, 0, 0.14);
+        background: rgba(169, 107, 31, 0.25);
         min-height: 24px;
         border-radius: 3px;
     }
     QScrollBar::handle:vertical:hover {
-        background: rgba(0, 0, 0, 0.3);
+        background: rgba(169, 107, 31, 0.5);
     }
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
         height: 0px;
@@ -852,12 +1161,12 @@ LIGHT_STYLESHEET = """
         margin: 2px 4px 2px 4px;
     }
     QScrollBar::handle:horizontal {
-        background: rgba(0, 0, 0, 0.14);
+        background: rgba(169, 107, 31, 0.25);
         min-width: 24px;
         border-radius: 3px;
     }
     QScrollBar::handle:horizontal:hover {
-        background: rgba(0, 0, 0, 0.3);
+        background: rgba(169, 107, 31, 0.5);
     }
     QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
         width: 0px;
@@ -872,15 +1181,25 @@ LIGHT_STYLESHEET = """
 # --- Main UI Window ---
 
 class MainWindow(QMainWindow):
-    def __init__(self, mac_address="60:55:56:22:49:A0"):
+    def __init__(self, mac_address=None, auto_connect=True):
         super().__init__()
-        self.mac_address = mac_address
+        # MAC priority: explicit arg (--mac) > remembered QSettings > fallback.
+        self.settings = QSettings(ORG_NAME, APP_NAME)
+        remembered_mac = str(self.settings.value("device/mac", DEFAULT_MAC))
+        self.mac_address = mac_address or remembered_mac
+        if self.mac_address != remembered_mac:
+            self.settings.setValue("device/mac", self.mac_address)
         self.is_connected = False
+        # Always launch dark; the Settings toggle is per-session only.
         self.theme_mode = "dark"
+        self._auto_connect = auto_connect
+        self._quit_requested = False
+        self._tray_notice_shown = bool(self.settings.value("ui/tray_notice_shown", False))
+        self._gestures = []  # last confirmed TouchGesture list from the buds
 
         self.setWindowTitle("OPPO Linux Companion")
-        self.setMinimumSize(660, 520)
-        self.resize(700, 540)
+        self.setMinimumSize(360, 480)
+        self.resize(820, 560)
 
         # Main Layout (Vertical: Top Header Bar + Page Stack)
         central_widget = QWidget()
@@ -897,24 +1216,19 @@ class MainWindow(QMainWindow):
         top_header_layout.setContentsMargins(16, 8, 16, 8)
         top_header_layout.setSpacing(12)
 
-        app_title = QLabel("OPPO Companion")
-        app_title.setFont(QFont("DejaVu Sans", 11, QFont.Bold))
-        top_header_layout.addWidget(app_title)
+        self.app_title_label = QLabel("OPPO Companion")
+        self.app_title_label.setFont(QFont("DejaVu Sans", 11, QFont.Bold))
+        top_header_layout.addWidget(self.app_title_label)
 
         top_header_layout.addStretch()
 
-        self.sidebar = QListWidget()
-        self.sidebar.setObjectName("top-nav-list")
-        self.sidebar.setFlow(QListWidget.LeftToRight)
-        self.sidebar.addItem("Dashboard")
-        self.sidebar.addItem("Gestures")
-        self.sidebar.addItem("Settings")
-        self.sidebar.addItem("Developer Tools")
+        self.sidebar = SegmentedTabs(
+            ["Dashboard", "Gestures", "Settings", "Developer Tools"],
+            icons=["dashboard", "gestures", "settings", "dev"],
+        )
         self.sidebar.setCurrentRow(0)
-        self.sidebar.currentRowChanged.connect(self._on_navigation_changed)
-        self.sidebar.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.sidebar.setFixedHeight(34)
+        self.sidebar.currentChanged.connect(self._on_navigation_changed)
+        self.sidebar.setFixedHeight(36)
         top_header_layout.addWidget(self.sidebar)
 
         top_header_layout.addStretch()
@@ -923,10 +1237,10 @@ class MainWindow(QMainWindow):
         status_layout = QHBoxLayout()
         status_layout.setSpacing(4)
         self.status_dot = QLabel("●")
-        self.status_dot.setStyleSheet("color: #D32F2F; font-size: 13px;")
+        self.status_dot.setStyleSheet("color: #C0564B; font-size: 13px;")
         status_layout.addWidget(self.status_dot)
         self.status_lbl = QLabel("Offline")
-        self.status_lbl.setStyleSheet("color: #888888; font-size: 10px;")
+        self.status_lbl.setStyleSheet("color: #8B6A55; font-size: 10px;")
         status_layout.addWidget(self.status_lbl)
         top_header_layout.addLayout(status_layout)
 
@@ -937,29 +1251,53 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(top_header_widget)
 
-        # 2. Page Stack
+        # 2. Page Stack — centered column so wide screens don't stretch
+        # cards edge to edge; side stretches collapse on narrow screens.
+        body = QWidget()
+        self._body_layout = QHBoxLayout(body)
+        self._body_layout.setContentsMargins(0, 0, 0, 0)
+        self._body_layout.setSpacing(0)
+        self._body_layout.addStretch(0)
         self.stacked_pages = QStackedWidget()
-        main_layout.addWidget(self.stacked_pages)
+        self._body_layout.addWidget(self.stacked_pages, 1)
+        self._body_layout.addStretch(0)
+        main_layout.addWidget(body)
 
         # Initialize state-tracking for verified non-optimistic updates
         self._confirmed_eq = 0
         self._confirmed_game_mode = False
         self._confirmed_volume = 50
 
+        # Page layouts for responsive margin tweaks (collected after init).
+        self._page_layouts = []
+
         # Initialize pages
         self._init_dashboard_page()
         self._init_gestures_page()
         self._init_settings_page()
         self._init_dev_page()
+        self._page_layouts = [
+            self.stacked_pages.widget(i).layout()
+            for i in range(self.stacked_pages.count())
+        ]
 
         # Disable telemetry controls by default until connection
         self._set_controls_enabled(False)
 
-        # Apply default theme
-        self.apply_theme("dark")
+        # Apply remembered theme (also persists it back to settings)
+        self.apply_theme(self.theme_mode)
+
+        # Restore window geometry from last session
+        geometry = self.settings.value("ui/geometry")
+        if geometry is not None:
+            try:
+                self.restoreGeometry(geometry)
+            except Exception:
+                pass
 
         # Initialize Worker Thread
         self.worker = OppoDeviceWorker(self.mac_address)
+        self.worker.set_auto_connect(self._auto_connect)
         self.worker.connection_status.connect(self._on_connection_changed)
         self.worker.profile_detected.connect(self._on_profile_detected)
         self.worker.battery_updated.connect(self._on_battery_received)
@@ -974,7 +1312,54 @@ class MainWindow(QMainWindow):
         # Synchronize default trace mode state to worker after worker instantiation
         self.worker.set_trace_mode(self.trace_cb.isChecked())
 
+        self._setup_tray()
+
         self.worker.start()
+
+    # --- System Tray (residency: close hides, quit is explicit) ---
+
+    def _setup_tray(self):
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray = None
+            return
+        icon = QIcon.fromTheme("audio-headset")
+        if icon.isNull():
+            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaVolume)
+        self.setWindowIcon(icon)
+        self.tray = QSystemTrayIcon(icon, self)
+        self.tray.setToolTip("OPPO Companion — Offline")
+
+        menu = QMenu(self)
+        self.tray_show_action = QAction("Show", self)
+        self.tray_show_action.triggered.connect(self._on_tray_show)
+        menu.addAction(self.tray_show_action)
+        self.tray_conn_action = QAction("Connect", self)
+        self.tray_conn_action.triggered.connect(self._on_connect_button_clicked)
+        menu.addAction(self.tray_conn_action)
+        menu.addSeparator()
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(self._on_tray_quit)
+        menu.addAction(quit_action)
+
+        self.tray.setContextMenu(menu)
+        self.tray.activated.connect(self._on_tray_activated)
+        self.tray.show()
+
+    def _on_tray_show(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            if self.isVisible():
+                self.hide()
+            else:
+                self._on_tray_show()
+
+    def _on_tray_quit(self):
+        self._quit_requested = True
+        self.close()
 
     # --- UI Layout Generation ---
 
@@ -996,30 +1381,57 @@ class MainWindow(QMainWindow):
         title_block.addWidget(self.subtitle_label)
         layout.addLayout(title_block)
 
+        # Two-column body: battery visual left, controls right on wide
+        # screens; stacked vertically on narrow ones (see _apply_layout_mode).
+        self._dash_body = QBoxLayout(QBoxLayout.TopToBottom)
+        self._dash_body.setSpacing(12)
+        self._dash_left = QWidget()
+        left_lay = QVBoxLayout(self._dash_left)
+        left_lay.setContentsMargins(0, 0, 0, 0)
+        self._dash_right = QWidget()
+        right_lay = QVBoxLayout(self._dash_right)
+        right_lay.setContentsMargins(0, 0, 0, 0)
+        # Right column scrolls when controls overflow; left visual stays fixed.
+        self.dash_scroll = QScrollArea()
+        self.dash_scroll.setFrameShape(QFrame.NoFrame)
+        self.dash_scroll.setWidgetResizable(True)
+        self.dash_scroll.viewport().setAutoFillBackground(False)
+        self.dash_scroll_content = QWidget()
+        self.dash_scroll_content.setObjectName("gesture-content")
+        self.dash_scroll_lay = QVBoxLayout(self.dash_scroll_content)
+        self.dash_scroll_lay.setContentsMargins(0, 0, 0, 0)
+        self.dash_scroll_lay.setSpacing(12)
+        self.dash_scroll.setWidget(self.dash_scroll_content)
+        right_lay.addWidget(self.dash_scroll)
+        self._dash_body.addWidget(self._dash_left)
+        self._dash_body.addWidget(self._dash_right)
+        layout.addLayout(self._dash_body)
+
         # Silhouettes Display Card
         sil_card = QFrame()
         sil_card.setObjectName("card")
         sil_layout = QHBoxLayout(sil_card)
-        sil_layout.setContentsMargins(10, 10, 10, 10)
+        sil_layout.setContentsMargins(10, 80, 10, 80)
 
         # Left Column
         left_layout = QVBoxLayout()
         self.left_silhouette = SilhouetteWidget("left")
+        self.left_silhouette.setMinimumSize(104, 132)
         left_layout.addWidget(self.left_silhouette, 0, Qt.AlignCenter)
         
         left_batt_row = QHBoxLayout()
         left_batt_row.setSpacing(4)
         left_batt_row.setAlignment(Qt.AlignCenter)
         self.left_bolt_lbl = QLabel("⚡")
-        self.left_bolt_lbl.setStyleSheet("color: #30D158; font-size: 11px; font-weight: bold;")
+        self.left_bolt_lbl.setStyleSheet("color: #7FB069; font-size: 11px; font-weight: bold;")
         self.left_bolt_lbl.setVisible(False)
         left_batt_row.addWidget(self.left_bolt_lbl)
         
-        self.left_battery_widget = BatteryWidget()
+        self.left_battery_widget = BatteryWidget(scale=1.5)
         left_batt_row.addWidget(self.left_battery_widget)
         
         self.left_battery_lbl = QLabel("--%")
-        self.left_battery_lbl.setFont(QFont("DejaVu Sans", 9, QFont.Bold))
+        self.left_battery_lbl.setFont(QFont("DejaVu Sans", 12, QFont.Bold))
         left_batt_row.addWidget(self.left_battery_lbl)
         left_layout.addLayout(left_batt_row)
         
@@ -1027,26 +1439,28 @@ class MainWindow(QMainWindow):
         left_label.setObjectName("section-subtitle")
         left_label.setAlignment(Qt.AlignCenter)
         left_layout.addWidget(left_label)
+        left_layout.addStretch(1)
         sil_layout.addLayout(left_layout)
 
         # Right Column
         right_layout = QVBoxLayout()
         self.right_silhouette = SilhouetteWidget("right")
+        self.right_silhouette.setMinimumSize(104, 132)
         right_layout.addWidget(self.right_silhouette, 0, Qt.AlignCenter)
         
         right_batt_row = QHBoxLayout()
         right_batt_row.setSpacing(4)
         right_batt_row.setAlignment(Qt.AlignCenter)
         self.right_bolt_lbl = QLabel("⚡")
-        self.right_bolt_lbl.setStyleSheet("color: #30D158; font-size: 11px; font-weight: bold;")
+        self.right_bolt_lbl.setStyleSheet("color: #7FB069; font-size: 11px; font-weight: bold;")
         self.right_bolt_lbl.setVisible(False)
         right_batt_row.addWidget(self.right_bolt_lbl)
         
-        self.right_battery_widget = BatteryWidget()
+        self.right_battery_widget = BatteryWidget(scale=1.5)
         right_batt_row.addWidget(self.right_battery_widget)
         
         self.right_battery_lbl = QLabel("--%")
-        self.right_battery_lbl.setFont(QFont("DejaVu Sans", 9, QFont.Bold))
+        self.right_battery_lbl.setFont(QFont("DejaVu Sans", 12, QFont.Bold))
         right_batt_row.addWidget(self.right_battery_lbl)
         right_layout.addLayout(right_batt_row)
         
@@ -1054,26 +1468,28 @@ class MainWindow(QMainWindow):
         right_label.setObjectName("section-subtitle")
         right_label.setAlignment(Qt.AlignCenter)
         right_layout.addWidget(right_label)
+        right_layout.addStretch(1)
         sil_layout.addLayout(right_layout)
 
         # Case Column
         case_layout = QVBoxLayout()
         self.case_silhouette = SilhouetteWidget("case")
+        self.case_silhouette.setMinimumSize(104, 132)
         case_layout.addWidget(self.case_silhouette, 0, Qt.AlignCenter)
         
         case_batt_row = QHBoxLayout()
         case_batt_row.setSpacing(4)
         case_batt_row.setAlignment(Qt.AlignCenter)
         self.case_bolt_lbl = QLabel("⚡")
-        self.case_bolt_lbl.setStyleSheet("color: #30D158; font-size: 11px; font-weight: bold;")
+        self.case_bolt_lbl.setStyleSheet("color: #7FB069; font-size: 11px; font-weight: bold;")
         self.case_bolt_lbl.setVisible(False)
         case_batt_row.addWidget(self.case_bolt_lbl)
         
-        self.case_battery_widget = BatteryWidget()
+        self.case_battery_widget = BatteryWidget(scale=1.5)
         case_batt_row.addWidget(self.case_battery_widget)
         
         self.case_battery_lbl = QLabel("--%")
-        self.case_battery_lbl.setFont(QFont("DejaVu Sans", 9, QFont.Bold))
+        self.case_battery_lbl.setFont(QFont("DejaVu Sans", 12, QFont.Bold))
         case_batt_row.addWidget(self.case_battery_lbl)
         case_layout.addLayout(case_batt_row)
         
@@ -1081,9 +1497,11 @@ class MainWindow(QMainWindow):
         case_label.setObjectName("section-subtitle")
         case_label.setAlignment(Qt.AlignCenter)
         case_layout.addWidget(case_label)
+        case_layout.addStretch(1)
         sil_layout.addLayout(case_layout)
 
-        layout.addWidget(sil_card)
+        left_lay.addWidget(sil_card)
+        left_lay.addStretch(1)
 
         # ANC Control Card
         self.anc_card = QFrame()
@@ -1119,7 +1537,7 @@ class MainWindow(QMainWindow):
 
         self.anc_group.buttonToggled.connect(self._on_anc_changed)
         anc_layout.addLayout(anc_buttons_layout)
-        layout.addWidget(self.anc_card)
+        self.dash_scroll_lay.addWidget(self.anc_card)
 
         # EQ Control Card
         self.eq_card = QFrame()
@@ -1136,7 +1554,7 @@ class MainWindow(QMainWindow):
         self.eq_dropdown.addItems(["Original (Balanced)", "Clear Vocals", "Bass Boost"])
         self.eq_dropdown.currentIndexChanged.connect(self._on_eq_ui_changed)
         eq_layout.addWidget(self.eq_dropdown)
-        layout.addWidget(self.eq_card)
+        self.dash_scroll_lay.addWidget(self.eq_card)
 
         # Game Mode Card
         self.gm_card = QFrame()
@@ -1148,7 +1566,33 @@ class MainWindow(QMainWindow):
         self.game_mode_cb.setFont(QFont("DejaVu Sans", 10))
         self.game_mode_cb.stateChanged.connect(self._on_game_mode_ui_changed)
         gm_layout.addWidget(self.game_mode_cb)
-        layout.addWidget(self.gm_card)
+        self.dash_scroll_lay.addWidget(self.gm_card)
+
+        # Alert Sound Volume (moved here from Settings so all sound
+        # controls live on the dashboard).
+        self.vol_card = QFrame()
+        self.vol_card.setObjectName("card")
+        vol_layout = QVBoxLayout(self.vol_card)
+        vol_layout.setContentsMargins(12, 12, 12, 12)
+
+        vol_header = QHBoxLayout()
+        vol_lbl = QLabel("Alert Sound Volume")
+        vol_lbl.setObjectName("section-title")
+        vol_header.addWidget(vol_lbl)
+        vol_header.addStretch()
+        self.vol_value_lbl = QLabel("--%")
+        self.vol_value_lbl.setStyleSheet("color: #8B6A55;")
+        vol_header.addWidget(self.vol_value_lbl)
+        vol_layout.addLayout(vol_header)
+
+        self.vol_slider = QSlider(Qt.Horizontal)
+        self.vol_slider.setRange(10, 100)
+        self.vol_slider.setValue(10)
+        self.vol_slider.valueChanged.connect(self._on_volume_slider_changed)
+        self.vol_slider.sliderReleased.connect(self._on_volume_slider_released)
+        vol_layout.addWidget(self.vol_slider)
+        self.dash_scroll_lay.addWidget(self.vol_card)
+        self.dash_scroll_lay.addStretch(1)
 
         self.stacked_pages.addWidget(page)
 
@@ -1162,23 +1606,29 @@ class MainWindow(QMainWindow):
         title = QLabel("Touch Controls Mapping")
         title.setFont(QFont("DejaVu Sans", 13, QFont.Bold))
         header.addWidget(title)
-        
+
         header.addStretch()
+        self.btn_apply_gestures = QPushButton("Apply to Buds")
+        self.btn_apply_gestures.setObjectName("primary-btn")
+        self.btn_apply_gestures.setToolTip("Write the edited mapping below back to the earbuds")
+        self.btn_apply_gestures.clicked.connect(self._on_apply_gestures)
+        header.addWidget(self.btn_apply_gestures)
         self.btn_refresh_gestures = QPushButton("Refresh")
         self.btn_refresh_gestures.clicked.connect(self._refresh_gestures)
         header.addWidget(self.btn_refresh_gestures)
         layout.addLayout(header)
 
+        hint = QLabel("Tap a function to remap it, then Apply to Buds. Refresh discards edits.")
+        hint.setObjectName("section-subtitle")
+        layout.addWidget(hint)
+
         self.scroll = QScrollArea()
+        self.scroll.setObjectName("gesture-scroll")
         self.scroll.setWidgetResizable(True)
-        self.scroll.setStyleSheet("""
-            QScrollArea {
-                border: 0.5px solid #2B2B2B;
-                background-color: #1C1C1C;
-                border-radius: 10px;
-            }
-        """)
+        # Viewport would otherwise paint the platform default (white).
+        self.scroll.viewport().setAutoFillBackground(False)
         self.scroll_content = QWidget()
+        self.scroll_content.setObjectName("gesture-content")
         self.scroll_layout = QVBoxLayout(self.scroll_content)
         self.scroll_layout.setSpacing(8)
         self.scroll_layout.setAlignment(Qt.AlignTop)
@@ -1209,33 +1659,9 @@ class MainWindow(QMainWindow):
         fw_layout.addStretch()
 
         self.fw_version_lbl = QLabel("Fetching...")
-        self.fw_version_lbl.setStyleSheet("color: #888888;")
+        self.fw_version_lbl.setStyleSheet("color: #8B6A55;")
         fw_layout.addWidget(self.fw_version_lbl)
         layout.addWidget(fw_card)
-
-        # Prompt Tone Volume
-        self.vol_card = QFrame()
-        self.vol_card.setObjectName("card")
-        vol_layout = QVBoxLayout(self.vol_card)
-        vol_layout.setContentsMargins(12, 12, 12, 12)
-
-        vol_header = QHBoxLayout()
-        vol_lbl = QLabel("Alert Sound Volume")
-        vol_lbl.setObjectName("section-title")
-        vol_header.addWidget(vol_lbl)
-        vol_header.addStretch()
-        self.vol_value_lbl = QLabel("--%")
-        self.vol_value_lbl.setStyleSheet("color: #888888;")
-        vol_header.addWidget(self.vol_value_lbl)
-        vol_layout.addLayout(vol_header)
-
-        self.vol_slider = QSlider(Qt.Horizontal)
-        self.vol_slider.setRange(10, 100)
-        self.vol_slider.setValue(10)
-        self.vol_slider.valueChanged.connect(self._on_volume_slider_changed)
-        self.vol_slider.sliderReleased.connect(self._on_volume_slider_released)
-        vol_layout.addWidget(self.vol_slider)
-        layout.addWidget(self.vol_card)
 
         # Find Buds Locator
         self.ring_card = QFrame()
@@ -1346,20 +1772,23 @@ class MainWindow(QMainWindow):
     def _on_connection_changed(self, state: str):
         if state == "connected":
             self.is_connected = True
-            self.status_dot.setStyleSheet("color: #30D158; font-size: 14px;")
+            self.status_dot.setStyleSheet("color: #7FB069; font-size: 14px;")
             self.status_lbl.setText("Connected")
-            self.status_lbl.setStyleSheet("color: #30D158; font-size: 10px;")
-            self.subtitle_label.setText("Connected")
+            self.status_lbl.setStyleSheet("color: #7FB069; font-size: 10px;")
+            self.subtitle_label.setText(f"Connected · {self.mac_address}")
             self._set_controls_enabled(True)
             self.btn_refresh_gestures.setEnabled(True)
             self.connect_btn.setText("Disconnect")
             self.connect_btn.setEnabled(True)
+            if hasattr(self, "tray") and self.tray is not None:
+                self.tray_conn_action.setText("Disconnect")
+                self.tray.setToolTip("OPPO Companion — Connected")
             self._refresh_gestures()
         elif state == "connecting":
             self.is_connected = False
-            self.status_dot.setStyleSheet("color: #FF9F0A; font-size: 14px;")
+            self.status_dot.setStyleSheet("color: #D9A441; font-size: 14px;")
             self.status_lbl.setText("Connecting...")
-            self.status_lbl.setStyleSheet("color: #FF9F0A; font-size: 10px;")
+            self.status_lbl.setStyleSheet("color: #D9A441; font-size: 10px;")
             self.subtitle_label.setText("Connecting...")
             self._set_controls_enabled(False)
             self.btn_refresh_gestures.setEnabled(False)
@@ -1368,9 +1797,9 @@ class MainWindow(QMainWindow):
         elif state == "disconnected":
             # Auto-retry still in progress — no action needed from the user yet.
             self.is_connected = False
-            self.status_dot.setStyleSheet("color: #FF9F0A; font-size: 14px;")
+            self.status_dot.setStyleSheet("color: #D9A441; font-size: 14px;")
             self.status_lbl.setText("Reconnecting...")
-            self.status_lbl.setStyleSheet("color: #FF9F0A; font-size: 10px;")
+            self.status_lbl.setStyleSheet("color: #D9A441; font-size: 10px;")
             self.subtitle_label.setText("Reconnecting...")
             self._set_controls_enabled(False)
             self.btn_refresh_gestures.setEnabled(False)
@@ -1381,14 +1810,17 @@ class MainWindow(QMainWindow):
             # "disconnected_manual" — auto-retries exhausted (or user disconnected):
             # give control back to the user via the button.
             self.is_connected = False
-            self.status_dot.setStyleSheet("color: #FF453A; font-size: 14px;")
+            self.status_dot.setStyleSheet("color: #C0564B; font-size: 14px;")
             self.status_lbl.setText("Offline")
-            self.status_lbl.setStyleSheet("color: #888888; font-size: 10px;")
+            self.status_lbl.setStyleSheet("color: #8B6A55; font-size: 10px;")
             self.subtitle_label.setText("Offline")
             self._set_controls_enabled(False)
             self.btn_refresh_gestures.setEnabled(False)
             self.connect_btn.setText("Connect")
             self.connect_btn.setEnabled(True)
+            if hasattr(self, "tray") and self.tray is not None:
+                self.tray_conn_action.setText("Connect")
+                self.tray.setToolTip("OPPO Companion — Offline")
             self._reset_telemetry_ui()
 
     @Slot(object)
@@ -1426,6 +1858,14 @@ class MainWindow(QMainWindow):
             self.case_battery_widget.setVisible(False)
 
         self.left_silhouette.update_state(self.is_connected, battery.left, battery.left.is_charging)
+        if hasattr(self, "tray") and self.tray is not None:
+            try:
+                self.tray.setToolTip(
+                    f"OPPO Companion — L {int(battery.left)}% · "
+                    f"R {int(battery.right)}%"
+                )
+            except Exception:
+                pass
         self.right_silhouette.update_state(self.is_connected, battery.right, battery.right.is_charging)
         self.case_silhouette.update_state(self.is_connected and battery.case != -1, battery.case, battery.case.is_charging)
 
@@ -1437,7 +1877,7 @@ class MainWindow(QMainWindow):
         self.eq_dropdown.blockSignals(False)
         self.eq_dropdown.setEnabled(True)
         self.status_lbl.setText("Connected")
-        self.status_lbl.setStyleSheet("color: #30D158; font-size: 10px;")
+        self.status_lbl.setStyleSheet("color: #7FB069; font-size: 10px;")
 
     @Slot(bool)
     def _on_game_mode_received(self, enable: bool):
@@ -1447,7 +1887,7 @@ class MainWindow(QMainWindow):
         self.game_mode_cb.blockSignals(False)
         self.game_mode_cb.setEnabled(True)
         self.status_lbl.setText("Connected")
-        self.status_lbl.setStyleSheet("color: #00E676; font-size: 10px;")
+        self.status_lbl.setStyleSheet("color: #7FB069; font-size: 10px;")
 
     @Slot(str)
     def _on_firmware_received(self, version: str):
@@ -1463,10 +1903,11 @@ class MainWindow(QMainWindow):
         self.vol_slider.setEnabled(True)
         self.vol_value_lbl.setText(f"{volume}%")
         self.status_lbl.setText("Connected")
-        self.status_lbl.setStyleSheet("color: #30D158; font-size: 10px;")
+        self.status_lbl.setStyleSheet("color: #7FB069; font-size: 10px;")
 
     @Slot(list)
     def _on_gestures_received(self, gestures: list):
+        self._gestures = list(gestures)
         for i in reversed(range(self.scroll_layout.count())):
             widget = self.scroll_layout.itemAt(i).widget()
             if widget:
@@ -1478,18 +1919,51 @@ class MainWindow(QMainWindow):
             self.scroll_layout.addWidget(lbl)
             return
 
-        for gesture in gestures:
+        func_ids = sorted(GESTURE_FUNCTIONS.keys())
+        for row_idx, gesture in enumerate(gestures):
             row = QFrame()
             row.setObjectName("card")
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(10, 4, 10, 4)
 
-            lbl = QLabel(str(gesture))
-            lbl.setFont(QFont("DejaVu Sans", 9))
+            ear = "Left" if gesture.earbud_id == 1 else "Right"
+            trig = TRIGGER_NAMES.get(gesture.trigger_id, f"Trig-{gesture.trigger_id}")
+            lbl = QLabel(f"{ear} · {trig}")
+            lbl.setFont(QFont("DejaVu Sans", 9, QFont.Bold))
             lbl.setStyleSheet("border: none; background: transparent;")
             row_layout.addWidget(lbl)
+            row_layout.addStretch()
+
+            combo = QComboBox()
+            for fid in func_ids:
+                combo.addItem(GESTURE_FUNCTIONS[fid], fid)
+            try:
+                combo.setCurrentIndex(func_ids.index(gesture.function_id))
+            except ValueError:
+                combo.addItem(f"Unknown ({hex(gesture.function_id)})", gesture.function_id)
+                combo.setCurrentIndex(combo.count() - 1)
+            combo.setProperty("gesture_index", row_idx)
+            combo.currentIndexChanged.connect(self._on_gesture_combo_changed)
+            row_layout.addWidget(combo)
 
             self.scroll_layout.addWidget(row)
+
+    def _on_gesture_combo_changed(self, _idx: int):
+        """Stage an edit locally; nothing touches the buds until Apply."""
+        combo = self.sender()
+        if combo is None:
+            return
+        row_idx = combo.property("gesture_index")
+        if row_idx is None or row_idx >= len(self._gestures):
+            return
+        self._gestures[row_idx].function_id = combo.currentData()
+
+    def _on_apply_gestures(self):
+        if self.is_connected and self._gestures:
+            self.status_lbl.setText("Applying...")
+            self.status_lbl.setStyleSheet(f"color: {COFFEE['warn']}; font-size: 10px;")
+            self.btn_apply_gestures.setEnabled(False)
+            self.worker.save_gestures(list(self._gestures))
 
     @Slot(str, str, str)
     def _on_packet_traced(self, direction: str, raw_hex: str, desc: str):
@@ -1501,7 +1975,7 @@ class MainWindow(QMainWindow):
     def _on_worker_error(self, err_msg: str):
         logger.error(f"Worker Error: {err_msg}")
         self.status_lbl.setText("Apply Failed")
-        self.status_lbl.setStyleSheet("color: #D32F2F; font-size: 10px;")
+        self.status_lbl.setStyleSheet("color: #C0564B; font-size: 10px;")
         
         # Restore control states to their last confirmed configurations
         self.eq_dropdown.blockSignals(True)
@@ -1519,6 +1993,52 @@ class MainWindow(QMainWindow):
         self.vol_slider.blockSignals(False)
         self.vol_slider.setEnabled(True)
         self.vol_value_lbl.setText(f"{self._confirmed_volume}%")
+
+    # --- Responsive breakpoints: mobile / floating / laptop / fullscreen ---
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply_layout_mode()
+
+    def _apply_layout_mode(self):
+        # Side spacers stay weightless (stretch 0): the column takes
+        # everything up to its cap; spacers only absorb leftover width.
+        w = self.width()
+        if w < 560:
+            # Mobile: compact everything, header keeps dot + Connect only.
+            margins, maxw = 8, 16777215
+            self.app_title_label.setVisible(False)
+            self.status_lbl.setVisible(False)
+            self._dash_body.setDirection(QBoxLayout.TopToBottom)
+        elif w < 860:
+            # Floating/small window: comfortable default, stacked cards.
+            margins, maxw = 12, 16777215
+            self.app_title_label.setVisible(True)
+            self.status_lbl.setVisible(True)
+            self._dash_body.setDirection(QBoxLayout.TopToBottom)
+        elif w < 1240:
+            # Laptop: breathing room, capped column, still stacked.
+            margins, maxw = 14, 1000
+            self.app_title_label.setVisible(True)
+            self.status_lbl.setVisible(True)
+            self._dash_body.setDirection(QBoxLayout.TopToBottom)
+        else:
+            # Fullscreen: wide canvas — battery left, controls right.
+            margins, maxw = 18, 1400
+            self.app_title_label.setVisible(True)
+            self.status_lbl.setVisible(True)
+            self._dash_body.setDirection(QBoxLayout.LeftToRight)
+            self._dash_body.setStretch(0, 3)
+            self._dash_body.setStretch(1, 2)
+        # Icon pills take over at 60% of the laptop breakpoint (740px):
+        # tab text starts clipping long before the mobile layout kicks in.
+        self.sidebar.set_compact(w < 740)
+        for lay in self._page_layouts:
+            if lay is not None:
+                lay.setContentsMargins(margins, margins, margins, margins)
+        self.stacked_pages.setMaximumWidth(maxw)
+        self._body_layout.setStretch(0, 0)
+        self._body_layout.setStretch(2, 0)
 
     # --- UI Slot Interaction triggers ---
 
@@ -1552,7 +2072,7 @@ class MainWindow(QMainWindow):
     def _on_eq_ui_changed(self, idx: int):
         if self.is_connected:
             self.status_lbl.setText("Applying...")
-            self.status_lbl.setStyleSheet("color: #FFC107; font-size: 10px;")
+            self.status_lbl.setStyleSheet("color: #D9A441; font-size: 10px;")
             self.eq_dropdown.setEnabled(False)
             self.worker.change_eq(idx)
 
@@ -1562,14 +2082,13 @@ class MainWindow(QMainWindow):
             # PySide6, so comparing them directly always evaluates False.
             enable = state == Qt.Checked.value
             self.status_lbl.setText("Applying...")
-            self.status_lbl.setStyleSheet("color: #FFC107; font-size: 10px;")
+            self.status_lbl.setStyleSheet("color: #D9A441; font-size: 10px;")
             self.game_mode_cb.setEnabled(False)
             self.worker.toggle_game_mode(enable)
 
     def _on_anc_changed(self, btn, checked):
         if checked and self.is_connected:
-            mode = btn.text().lower()
-            asyncio.run_coroutine_threadsafe(self.worker.device.set_anc_mode(mode), self.worker.loop)
+            self.worker.set_anc_mode(btn.text().lower())
 
     def _on_volume_slider_changed(self, val: int):
         self.vol_value_lbl.setText(f"{val}%")
@@ -1578,7 +2097,7 @@ class MainWindow(QMainWindow):
         if self.is_connected:
             val = self.vol_slider.value()
             self.status_lbl.setText("Applying...")
-            self.status_lbl.setStyleSheet("color: #FFC107; font-size: 10px;")
+            self.status_lbl.setStyleSheet("color: #D9A441; font-size: 10px;")
             self.vol_slider.setEnabled(False)
             self.worker.change_volume(val)
 
@@ -1589,8 +2108,8 @@ class MainWindow(QMainWindow):
                 self.btn_ring.setText("Stop Ringing")
                 self.btn_ring.setStyleSheet("""
                     QPushButton {
-                        background-color: #D32F2F;
-                        border: 1px solid #D32F2F;
+                        background-color: #C0564B;
+                        border: 1px solid #C0564B;
                         color: #FFFFFF;
                     }
                 """)
@@ -1620,6 +2139,7 @@ class MainWindow(QMainWindow):
         self.btn_anc.setEnabled(enable)
         self.btn_anc_off.setEnabled(enable)
         self.btn_transparency.setEnabled(enable)
+        self.btn_apply_gestures.setEnabled(enable)
 
     def _reset_telemetry_ui(self):
         self.title_label.setText("OPPO Enco Buds3 Pro")
@@ -1655,11 +2175,13 @@ class MainWindow(QMainWindow):
         self.theme_mode = mode
         if mode == "light":
             self.setStyleSheet(LIGHT_STYLESHEET)
+            self.sidebar.set_colors(QColor("#FFFDF8"), QColor("#6B4A3A"))
             self.theme_dropdown.blockSignals(True)
             self.theme_dropdown.setCurrentIndex(1)
             self.theme_dropdown.blockSignals(False)
         else:
             self.setStyleSheet(DARK_STYLESHEET)
+            self.sidebar.set_colors(QColor("#211510"), QColor("#C9B19C"))
             self.theme_dropdown.blockSignals(True)
             self.theme_dropdown.setCurrentIndex(0)
             self.theme_dropdown.blockSignals(False)
@@ -1677,13 +2199,31 @@ class MainWindow(QMainWindow):
             
         # Trigger updates
         if hasattr(self, 'left_silhouette'):
-            self.left_silhouette.update()
+            self.left_silhouette.set_theme(mode)
         if hasattr(self, 'right_silhouette'):
-            self.right_silhouette.update()
+            self.right_silhouette.set_theme(mode)
         if hasattr(self, 'case_silhouette'):
-            self.case_silhouette.update()
+            self.case_silhouette.set_theme(mode)
 
     def closeEvent(self, event):
+        self.settings.setValue("ui/geometry", self.saveGeometry())
+        # Tray residency: X hides to tray (once explained), Quit is explicit.
+        if (
+            hasattr(self, "tray") and self.tray is not None
+            and self.tray.isVisible() and not self._quit_requested
+        ):
+            event.ignore()
+            self.hide()
+            if not self._tray_notice_shown:
+                self._tray_notice_shown = True
+                self.settings.setValue("ui/tray_notice_shown", True)
+                self.tray.showMessage(
+                    "OPPO Companion",
+                    "Still running in the tray. Right-click the icon to Quit.",
+                    QSystemTrayIcon.MessageIcon.Information,
+                    4000,
+                )
+            return
         self.worker.stop()
         self.worker.wait()
         event.accept()
@@ -1691,16 +2231,24 @@ class MainWindow(QMainWindow):
 
 # --- CLI / Main Entry ---
 
-def main():
+def main(argv=None):
+    import argparse
     from PySide6.QtCore import QLocale
     QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
 
-    mac = "60:55:56:22:49:A0"
-    if len(sys.argv) > 1 and ":" in sys.argv[1]:
-        mac = sys.argv[1]
-        
-    app = QApplication(sys.argv)
-    window = MainWindow(mac)
+    parser = argparse.ArgumentParser(description="OPPO Enco Buds Linux companion")
+    parser.add_argument("--mac", default=None,
+                        help="Buds Bluetooth MAC (defaults to remembered device)")
+    parser.add_argument("--no-auto-connect", action="store_true",
+                        help="Wait for the Connect button instead of connecting on launch")
+    args = parser.parse_args(argv)
+
+    app = QApplication(sys.argv if argv is None else [sys.argv[0]])
+    app.setOrganizationName(ORG_NAME)
+    app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName("OPPO Companion")
+    app.setQuitOnLastWindowClosed(False)
+    window = MainWindow(mac_address=args.mac, auto_connect=not args.no_auto_connect)
     window.show()
     sys.exit(app.exec())
 

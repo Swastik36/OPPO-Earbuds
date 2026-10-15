@@ -18,7 +18,7 @@ def q_app():
 
 def test_gui_profile_capabilities(q_app):
     """Verify that MainWindow dynamically shows/hides widgets based on profile capabilities."""
-    window = MainWindow()
+    window = MainWindow(auto_connect=False)
     
     try:
         # 1. Enco Buds3 Pro: supports_anc is False
@@ -68,7 +68,7 @@ def test_game_mode_checkbox_forwards_its_actual_checked_state():
 
 def test_gui_non_optimistic_state_machine_success(q_app):
     """Verify that GUI controls follow 'Applying...' -> 'Connected' state transitions on success."""
-    window = MainWindow()
+    window = MainWindow(auto_connect=False)
     window.is_connected = True
     
     try:
@@ -89,7 +89,7 @@ def test_gui_non_optimistic_state_machine_success(q_app):
 
 def test_gui_non_optimistic_state_machine_failure_rollback(q_app):
     """Verify that GUI controls roll back to last confirmed values and re-enable on write failure."""
-    window = MainWindow()
+    window = MainWindow(auto_connect=False)
     window.is_connected = True
     
     try:
@@ -112,7 +112,7 @@ def test_gui_non_optimistic_state_machine_failure_rollback(q_app):
 
 def test_gui_trace_mode_default_synchronization(q_app):
     """Verify default trace mode check state propagates safely to worker and transport."""
-    window = MainWindow()
+    window = MainWindow(auto_connect=False)
     try:
         # Check defaults
         assert window.trace_cb.isChecked() is True
