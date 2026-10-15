@@ -3,8 +3,8 @@ Type=Application
 Name=OPPO Companion
 GenericName=Earbud Control & Telemetry
 Comment=Linux companion application for OPPO Enco Buds3 Pro earbuds
-Exec=sh -c 'PATH="$HOME/.local/bin:$PATH" oppogui'
-Icon=bluetooth
+Exec=/home/swastik/.local/bin/oppogui
+Icon=audio-headphones
 Terminal=false
-Categories=AudioVideo;Audio;Settings;HardwareSettings;
+Categories=AudioVideo;Settings;HardwareSettings;
 Keywords=oppo;enco;earbuds;heymelody;bluetooth;telemetry;
