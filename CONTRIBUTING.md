@@ -10,13 +10,13 @@ To initialize a development sandbox:
 
 ```bash
 # Clone and enter repo
-git clone https://github.com/your-username/oppo-control.git
-cd oppo-control
+git clone https://github.com/Swastik36/OPPO-Earbuds.git
+cd OPPO-Earbuds
 
 # Create virtualenv and install with dev dependencies
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .[dev]
+pip install -e ".[dev]"
 ```
 
 ---

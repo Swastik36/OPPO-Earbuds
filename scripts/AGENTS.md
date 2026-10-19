@@ -14,7 +14,7 @@ This directory contains developer utility scripts for real-time Bluetooth packet
 
 # Work Guidance
 
-- Use [packet_logger.py](file:///home/swastik/new-project/oppo%20gui/scripts/packet_logger.py) for capturing live RFCOMM traffic during protocol analysis.
+- Use [packet_logger.py](packet_logger.py) for capturing live RFCOMM traffic during protocol analysis.
 
 # Verification
 
@@ -22,8 +22,8 @@ This directory contains developer utility scripts for real-time Bluetooth packet
 
 # Child DOX Index
 
-- [packet_logger.py](file:///home/swastik/new-project/oppo%20gui/scripts/packet_logger.py): Real-time Bluetooth RFCOMM packet logging tool.
-- [survey.py](file:///home/swastik/new-project/oppo%20gui/scripts/survey.py): Bluetooth device capability discovery utility.
-- [validate_oppo_protocol.py](file:///home/swastik/new-project/oppo%20gui/scripts/validate_oppo_protocol.py): Offline protocol validation script.
-- [notify_logger.py](file:///home/swastik/new-project/oppo%20gui/scripts/notify_logger.py): Notification and telemetry capture logger.
-- [demo_oppo_control.py](file:///home/swastik/new-project/oppo%20gui/scripts/demo_oppo_control.py): Demonstration entrypoint for device library.
+- [packet_logger.py](packet_logger.py): Real-time Bluetooth RFCOMM packet logging tool.
+- [survey.py](survey.py): Bluetooth device capability discovery utility.
+- [validate_oppo_protocol.py](validate_oppo_protocol.py): Offline protocol validation script.
+- [notify_logger.py](notify_logger.py): Notification and telemetry capture logger.
+- [demo_oppo_control.py](demo_oppo_control.py): Demonstration entrypoint for device library.

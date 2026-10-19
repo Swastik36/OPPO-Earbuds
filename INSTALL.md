@@ -39,11 +39,13 @@ It is recommended to install the package within a local Python virtual environme
 
 1.  **Clone the Repository & Initialize Environment:**
     ```bash
-    git clone https://github.com/your-username/oppo-control.git
-    cd oppo-control
+    git clone https://github.com/Swastik36/OPPO-Earbuds.git
+    cd OPPO-Earbuds
     python3 -m venv .venv
     source .venv/bin/activate
     ```
+
+    Alternatively, run `./install.sh` for a user-space install (virtualenv + `~/.local/bin` symlinks + menu entry) without creating one manually.
 
 2.  **Install the Package:**
     *   **User/Production Install:**
@@ -64,7 +66,9 @@ This registers the binary shortcuts `oppoctl` and `oppogui` inside your virtual 
 To register the graphical utility in your desktop menu (so it can be launched via GNOME Shell or KDE Application launcher):
 
 ```bash
-cp oppogui.desktop ~/.local/share/applications/
+mkdir -p ~/.local/share/applications
+sed "s|^Exec=.*|Exec=$PWD/.venv/bin/oppogui|" oppogui.desktop \
+    > ~/.local/share/applications/oppogui.desktop
 ```
 
-This binds the launcher to the virtual environment binary path (`/home/swastik/new-project/oppo gui/.venv/bin/oppogui`). If your virtual environment is located elsewhere, edit the `Exec=` path inside `~/.local/share/applications/oppogui.desktop` accordingly.
+This points the launcher at the virtual environment's `oppogui` binary. If you used `./install.sh`, the installer already writes a correct entry pointing at `~/.local/bin/oppogui`, so this step is unnecessary.

@@ -14,7 +14,7 @@ This directory serves as the permanent laboratory notebook and technical specifi
 
 # Work Guidance
 
-- Refer to [PROTOCOL.md](file:///home/swastik/new-project/oppo%20gui/docs/PROTOCOL.md) for master OPO v1 protocol specifications.
+- Refer to [PROTOCOL.md](PROTOCOL.md) for master OPO v1 protocol specifications.
 
 # Verification
 
@@ -22,8 +22,8 @@ This directory serves as the permanent laboratory notebook and technical specifi
 
 # Child DOX Index
 
-- [PROTOCOL.md](file:///home/swastik/new-project/oppo%20gui/docs/PROTOCOL.md): Master OPO v1 RFCOMM protocol specification.
-- [GATT_PROFILE.md](file:///home/swastik/new-project/oppo%20gui/docs/GATT_PROFILE.md): GATT service and characteristic layout definitions.
-- [PROJECT_STATUS.md](file:///home/swastik/new-project/oppo%20gui/docs/PROJECT_STATUS.md): Feature status matrix and implementation roadmap.
-- [PROTOCOL_NOTES.md](file:///home/swastik/new-project/oppo%20gui/docs/PROTOCOL_NOTES.md): Detailed reverse engineering notes and packet trace breakdowns.
-- [OPPO_PODS_COMPARE.md](file:///home/swastik/new-project/oppo%20gui/docs/OPPO_PODS_COMPARE.md): Comparison matrix across OPPO earbud hardware generations.
+- [PROTOCOL.md](PROTOCOL.md): Master OPO v1 RFCOMM protocol specification.
+- [GATT_PROFILE.md](GATT_PROFILE.md): GATT service and characteristic layout definitions.
+- [PROJECT_STATUS.md](PROJECT_STATUS.md): Feature status matrix and implementation roadmap.
+- [PROTOCOL_NOTES.md](PROTOCOL_NOTES.md): Detailed reverse engineering notes and packet trace breakdowns.
+- [OPPO_PODS_COMPARE.md](OPPO_PODS_COMPARE.md): Comparison matrix across OPPO earbud hardware generations.

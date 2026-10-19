@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -eo pipefail
 
 echo "===================================================="
 echo " Installing OPPO Enco Buds3 Pro Linux Companion"
@@ -9,6 +9,31 @@ echo "===================================================="
 INSTALL_DIR="$HOME/.local/share/oppo-control"
 BIN_DIR="$HOME/.local/bin"
 APP_DIR="$HOME/.local/share/applications"
+FETCH_DIR=""
+
+cleanup() {
+    if [ -n "$FETCH_DIR" ] && [ -d "$FETCH_DIR" ]; then
+        rm -rf "$FETCH_DIR"
+    fi
+}
+trap cleanup EXIT
+
+# Resolve the source tree. BASH_SOURCE is empty when this script is piped
+# from curl, so fetch the repository tarball first in that case.
+SCRIPT_PATH="${BASH_SOURCE[0]:-}"
+if [ -n "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
+    SCRIPT_DIR="$( cd "$( dirname "$SCRIPT_PATH" )" && pwd )"
+else
+    if ! command -v curl >/dev/null || ! command -v tar >/dev/null; then
+        echo "Error: curl and tar are required for a piped install." >&2
+        exit 1
+    fi
+    echo "[+] Fetching source from GitHub..."
+    FETCH_DIR="$(mktemp -d)"
+    curl -fsSL "https://github.com/Swastik36/OPPO-Earbuds/archive/refs/heads/main.tar.gz" \
+        | tar -xz -C "$FETCH_DIR" --strip-components=1
+    SCRIPT_DIR="$FETCH_DIR"
+fi
 
 # Check Python 3 availability
 if ! command -v python3 &> /dev/null; then
@@ -22,8 +47,14 @@ mkdir -p "$BIN_DIR"
 mkdir -p "$APP_DIR"
 
 echo "[2/5] Copying application files..."
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
+tar -C "$SCRIPT_DIR" \
+    --exclude=.git \
+    --exclude=.venv \
+    --exclude=__pycache__ \
+    --exclude=.pytest_cache \
+    --exclude='*.egg-info' \
+    --exclude='*.pyc' \
+    -cf - . | tar -C "$INSTALL_DIR" -xf -
 
 echo "[3/5] Setting up isolated Python virtual environment..."
 python3 -m venv "$INSTALL_DIR/.venv"
@@ -51,7 +82,7 @@ Name=OPPO Companion
 GenericName=Earbud Control & Telemetry
 Comment=Linux companion application for OPPO Enco Buds3 Pro earbuds
 Exec=$BIN_DIR/oppogui
-Icon=bluetooth
+Icon=audio-headphones
 Terminal=false
 Categories=AudioVideo;Audio;Settings;HardwareSettings;
 Keywords=oppo;enco;earbuds;heymelody;bluetooth;telemetry;

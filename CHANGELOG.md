@@ -10,23 +10,29 @@ Desktop companion overhaul.
 ### Added
 *   **Coffee Theme:** Espresso dark / Latte light stylesheets replacing the previous GitHub-dark palette, with semantic status colours (battery bands: red → caramel → green at 90–100%).
 *   **Sliding Tab Bar:** Four fixed tabs with a caramel pill that animates position only (no stretch), switching to hand-drawn vector icons below 740px.
-*   **Editable Touch Gestures:** Every trigger can be remapped from the GUI and written back to the buds with **Apply to Buds** (read-back confirmed).
-*   **System Tray Residency:** Closing the window hides it to the tray with a live battery tooltip; explicit Quit from the tray menu.
+*   **Editable Touch Gestures:** Every trigger can be remapped from the GUI and written back to the buds with **Apply to Buds**; the mapping is re-read after the write.
+*   **System Tray Residency:** Closing the window hides it to the tray with a live battery tooltip; explicit Quit from the tray menu. Without a tray host, closing exits.
 *   **Auto-Connect:** Connects to the last used earbuds on launch (`--no-auto-connect` to opt out); `--mac` overrides the target device.
 *   **Responsive Layout:** Mobile → floating → laptop → fullscreen breakpoints, with a fixed visual panel and a scrolling control column, plus a centred column on wide screens.
 *   **Alert Sound Volume** moved from Settings to the dashboard.
 
 ### Changed
-*   Device MAC, window geometry, and theme are persisted through `QSettings`; the app always launches dark and the theme toggle is per-session.
+*   Device MAC and window geometry are persisted through `QSettings`; the app always launches dark and the theme toggle is per-session.
 *   `oppogui` now accepts `--mac` and `--no-auto-connect` instead of a bare positional MAC argument.
+*   Package version raised to 1.1.0 to match the documented feature release.
 
 ### Fixed
-*   ANC requests on hardware without ANC no longer appear to succeed silently.
+*   ANC buttons map to the protocol modes (`on` / `off` / `transparency`), not to their captions; the acoustic-control card stays hidden on hardware profiles without ANC support.
+*   **Apply to Buds** re-enables after a successful or failed gesture write, and the status line returns to `Connected` on success instead of staying on `Applying...`.
+*   Dashboard width stretches from the fullscreen two-column layout no longer leak into stacked modes.
+*   `oppogui` exits when the last window closes if no system tray is available.
+*   The one-line `curl | bash` installer now fetches the repository when run from stdin; local installs no longer copy `.venv`, `.git`, or build caches.
 *   Removed duplicated mockup files from the repository root.
 
 ### Documentation
-*   README rewritten: corrected installer URL and repository links, accurate directory map, full CLI command reference, and a new desktop-companion section.
+*   README rewritten: corrected installer URL and repository links, accurate directory map, full CLI command reference (including valid `eq` and `find` arguments), and a new desktop-companion section.
 *   `docs/PROJECT_STATUS.md` Stage 4/5 brought in line with the shipped application.
+*   Regression tests added for gesture Apply lifecycle, ANC mode mapping, dashboard stretch reset, CLI EQ choice mapping, and unsupported ANC rejection (22/22 passing).
 
 ---
 

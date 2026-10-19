@@ -18,4 +18,4 @@ This directory contains telemetry models, device state dataclasses, battery stat
 
 # Child DOX Index
 
-- [__init__.py](file:///home/swastik/new-project/oppo%20gui/src/models/__init__.py): Models package initializer.
+- [__init__.py](__init__.py): Models package initializer.

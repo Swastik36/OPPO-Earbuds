@@ -99,7 +99,7 @@ Develop a fully open-source Linux companion application, PySide6 Desktop GUI, an
 
 ## Work Guidance
 
-- Refer to [PROTOCOL.md](file:///home/swastik/new-project/oppo%20gui/docs/PROTOCOL.md) for OPO v1 packet headers, command IDs, and checksum layout.
+- Refer to [PROTOCOL.md](docs/PROTOCOL.md) for OPO v1 packet headers, command IDs, and checksum layout.
 - Use `oppoctl` command line interface for quick headless protocol debugging and hardware queries.
 
 ## Verification
@@ -109,8 +109,8 @@ Develop a fully open-source Linux companion application, PySide6 Desktop GUI, an
 
 ## Child DOX Index
 
-- [src](file:///home/swastik/new-project/oppo%20gui/src/AGENTS.md): Main Python application package source containing `oppo_control` library, `gui` PySide6 application, and telemetry models.
-- [docs](file:///home/swastik/new-project/oppo%20gui/docs/AGENTS.md): Reverse-engineering specifications, protocol frame layout, and GATT profiles.
-- [tests](file:///home/swastik/new-project/oppo%20gui/tests/AGENTS.md): Automated pytest suite for RFCOMM frame parsing, checksums, decoders, and GUI instantiation.
-- [scripts](file:///home/swastik/new-project/oppo%20gui/scripts/AGENTS.md): Developer packet logging, protocol validation, and device survey utility scripts.
+- [src](src/AGENTS.md): Main Python application package source containing `oppo_control` library, `gui` PySide6 application, and telemetry models.
+- [docs](docs/AGENTS.md): Reverse-engineering specifications, protocol frame layout, and GATT profiles.
+- [tests](tests/AGENTS.md): Automated pytest suite for RFCOMM frame parsing, checksums, decoders, and GUI instantiation.
+- [scripts](scripts/AGENTS.md): Developer packet logging, protocol validation, and device survey utility scripts.
 <!-- END:dox-framework-root -->

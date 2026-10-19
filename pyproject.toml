@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oppo-control"
-version = "0.1.0"
+version = "1.1.0"
 description = "Fully open-source Linux companion library and CLI driver for the OPPO Enco Buds3 Pro"
 readme = "README.md"
 requires-python = ">=3.10"

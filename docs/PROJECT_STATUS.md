@@ -161,11 +161,13 @@ encobuds-linux/
 * **Status:** Completed. The desktop companion (`oppogui`) ships a coffee-themed
   Espresso/Latte interface with: auto-connect on launch, live battery for both
   buds and the case, equalizer / game-mode / alert-volume controls, an editable
-  touch-gesture matrix that writes back to the buds, system-tray residency, a
-  raw-packet trace console, and a responsive layout (mobile → fullscreen).
+  touch-gesture matrix with Apply-to-Buds write-back (live hardware round-trip
+  still pending), system-tray residency, a raw-packet trace console, and a
+  responsive layout (mobile → fullscreen).
 
 ## Stage 5: Packaging
 * **Status:** In progress. User-space installer (`install.sh`) creates an
   isolated virtualenv, symlinks `oppoctl` / `oppogui` into `~/.local/bin`, and
-  registers the application-menu launcher. Flatpak / AppImage not yet packaged.
+  registers the application-menu launcher. It works from a checkout and from
+  the documented `curl | bash` one-liner. Flatpak / AppImage not yet packaged.
 

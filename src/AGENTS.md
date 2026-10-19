@@ -11,7 +11,7 @@ This directory contains the core application source code for the OPPO Enco Buds3
 
 - All Python code must be written for Python 3.10+ and include type hints (`typing`).
 - Core protocol logic must remain completely decoupled from PySide6 GUI views to enable standalone headless CLI usage via `oppoctl`.
-- System exceptions must inherit from custom exceptions defined in [exceptions.py](file:///home/swastik/new-project/oppo%20gui/src/oppo_control/exceptions.py).
+- System exceptions must inherit from custom exceptions defined in [exceptions.py](oppo_control/exceptions.py).
 
 # Work Guidance
 
@@ -24,6 +24,6 @@ This directory contains the core application source code for the OPPO Enco Buds3
 
 # Child DOX Index
 
-- [oppo_control](file:///home/swastik/new-project/oppo%20gui/src/oppo_control/AGENTS.md): Asynchronous RFCOMM transport, OPO v1 protocol parser, command definitions, device controller API, and `oppoctl` CLI.
-- [gui](file:///home/swastik/new-project/oppo%20gui/src/gui/AGENTS.md): PySide6 Desktop GUI application views and system tray components.
-- [models](file:///home/swastik/new-project/oppo%20gui/src/models/AGENTS.md): Device telemetry data models, battery schemas, and state objects.
+- [oppo_control](oppo_control/AGENTS.md): Asynchronous RFCOMM transport, OPO v1 protocol parser, command definitions, device controller API, and `oppoctl` CLI.
+- [gui](gui/AGENTS.md): PySide6 desktop GUI behavior contracts; the `oppogui` entrypoint lives in `oppo_control/gui.py`.
+- [models](models/AGENTS.md): Device telemetry data models, battery schemas, and state objects.

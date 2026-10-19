@@ -1,11 +1,11 @@
 # Purpose
 
-This directory contains the PySide6 Desktop GUI application views, custom widgets, system tray integrations, and visual layout components for the OPPO Enco Buds3 Pro companion.
+This directory is the GUI package initializer. The PySide6 desktop application lives in [gui.py](../oppo_control/gui.py); the contracts below apply to that entrypoint.
 
 # Ownership
 
 - Owner: Desktop App / UI Developers
-- Scope: PySide6 (Qt6 for Python) visual widgets, theme engines, earbud status cards, and tray notifications
+- Scope: PySide6 (Qt6 for Python) window, widgets, theme engine, system tray, and responsive layout
 
 # Local Contracts
 
@@ -14,14 +14,13 @@ This directory contains the PySide6 Desktop GUI application views, custom widget
 - Custom styling uses the coffee palette (Espresso dark / Latte light, caramel accent) in both themes; semantic colors only for status (ok/warn/err).
 - Bud/case silhouettes always paint cream-white in every theme.
 - App always launches dark; the Settings theme toggle is per-session only (not persisted).
-- No Bluetooth MAC is hardcoded: `--mac` flag wins, then the QSettings-remembered device, then the fallback constant.
+- No per-device MAC is sent without resolution: `--mac` wins, then the QSettings-remembered device, then the `DEFAULT_MAC` fallback.
 - The app auto-connects on launch to the remembered device; `--no-auto-connect` restores click-to-connect.
-- Gesture mapping is editable (per-gesture function dropdown + Apply writes via `device.set_gestures()`); nothing is sent until Apply.
-- Window closes to the system tray (one-time notice); Quit is explicit via the tray menu. No tray on headless/offscreen.
+- Gesture mapping is editable (per-gesture function dropdown + Apply writes via `device.set_gestures()`); nothing is sent until Apply, and Apply re-enables after the write succeeds or fails.
+- Window closes to the system tray (one-time notice); Quit is explicit via the tray menu. Without a tray host, closing the last window exits.
 - Navigation is a 4-tab SegmentedTabs bar (Dashboard / Gestures / Settings / Developer Tools): fixed equal tabs, no scroll, caramel pill slides via 220ms QPropertyAnimation. API: setCurrentRow / currentChanged.
 - Below 740px (60% of the laptop breakpoint) the tabs go icon-only: hand-drawn 1.8px vector line icons (grid, touch-ripple, gear, code brackets via `paint_tab_icon`), two-tone per theme, text moves to tooltips.
 - Pill animates `pos` only (equal tabs never change size) — no stretch jank.
-- Fullscreen 1240+ uses a two-column dashboard (battery visual left 3:2 controls right) capped at 1400; narrower modes stack vertically. Column contents are top-pinned with stretches.
 - Gesture scroll viewport is transparent (`gesture-content`); rows never paint platform white.
 - Battery bands: 0-20 warm red, 21-89 caramel, 90-100 leaf green.
 - Responsive breakpoints on window width: mobile <560 (8px margins, title + status text hidden), floating 560-860 (12px), laptop 860-1240 (14px, capped 1000 column), fullscreen 1240+ (18px, capped 1400, two-column dashboard).

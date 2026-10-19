@@ -22,6 +22,8 @@ This directory contains the automated test suite powered by `pytest` for verifyi
 
 # Child DOX Index
 
-- [test_protocol.py](file:///home/swastik/new-project/oppo%20gui/tests/test_protocol.py): RFCOMM frame assembly, header verification, and checksum test suite.
-- [test_gui.py](file:///home/swastik/new-project/oppo%20gui/tests/test_gui.py): PySide6 GUI component instantiation test suite.
-- [run_tests.py](file:///home/swastik/new-project/oppo%20gui/tests/run_tests.py): Custom standalone test runner script.
+- [test_protocol.py](test_protocol.py): RFCOMM frame assembly, header verification, and checksum test suite.
+- [test_gui.py](test_gui.py): PySide6 GUI behavior tests (state machine, gesture Apply lifecycle, breakpoints).
+- [test_cli.py](test_cli.py): CLI argument-to-enum mapping checks.
+- [test_device.py](test_device.py): Device capability checks, including ANC rejection.
+- [run_tests.py](run_tests.py): Custom standalone test runner script.

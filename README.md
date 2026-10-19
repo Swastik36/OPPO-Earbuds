@@ -16,9 +16,14 @@ Built on top of the reverse-engineered **RFCOMM DLCI 30 (Server Channel 15)** Bl
 ## 1. Directory Structure
 
 ```text
-oppo-control/
+OPPO-Earbuds/
+├── AGENTS.md                    # DOX work contracts
+├── CHANGELOG.md
+├── INSTALL.md
+├── README.md
+├── REVERSE_ENGINEERING.md
 ├── pyproject.toml               # Build-system configuration (PEP 517/518)
-├── README.md                    # Technical installation manual
+├── requirements.txt
 ├── install.sh                   # One-shot user-space installer (no root)
 ├── oppogui.desktop              # Desktop launcher template
 ├── docs/                        # Specifications and lab notes
@@ -28,13 +33,18 @@ oppo-control/
 │   ├── OPPO_PODS_COMPARE.md
 │   └── PROJECT_STATUS.md
 ├── captures/                    # Ground-truth binary captures
-│   └── README.md
 ├── examples/                    # Minimal API usage examples
+├── scripts/                     # Logging, survey, and validation utilities
 ├── tests/                       # Offline automated test suite
 │   ├── test_protocol.py
-│   └── test_gui.py
+│   ├── test_gui.py
+│   ├── test_cli.py
+│   ├── test_device.py
+│   └── run_tests.py
 ├── Old/                         # Superseded mockups and reference screenshots
 └── src/
+    ├── gui/                     # GUI package initializer
+    ├── models/                  # Telemetry model package initializer
     └── oppo_control/
         ├── __init__.py
         ├── transport.py         # Async Linux RFCOMM socket wrapper
@@ -74,10 +84,12 @@ If you wish to work on the codebase in editable mode:
 
 ```bash
 # Clone and enter the repository
+git clone https://github.com/Swastik36/OPPO-Earbuds.git
 cd OPPO-Earbuds
 
-# Install in editable mode with development dependencies
-./.venv/bin/pip install -e .[dev]
+# Create an isolated environment and install in editable mode
+python3 -m venv .venv
+./.venv/bin/pip install -e ".[dev]"
 ```
 
 ---
@@ -104,8 +116,12 @@ oppoctl info
 # Query real-time battery status
 oppoctl battery
 
-# Update Equalizer DSP profiles (original, bass_boost, clear_vocals)
+# Update Equalizer DSP profiles
+# (original, bass, treble, vocal, bass_boost, treble_boost)
 oppoctl eq bass_boost
+
+# Acoustic control on supported hardware (on, off, transparency)
+oppoctl anc on
 
 # Toggle Low-Latency Game Mode (on, off)
 oppoctl gamemode on
@@ -116,8 +132,8 @@ oppoctl gestures
 # Query or set the alert prompt tone volume (0-100)
 oppoctl volume 80
 
-# Ring the earbuds to locate them
-oppoctl find on
+# Ring the earbuds to locate them (start, stop)
+oppoctl find start
 
 # Record a live session to a log, or replay a recorded one
 oppoctl record session.log
@@ -145,8 +161,9 @@ Launch **OPPO Companion** from your application menu, or run `oppogui` directly.
 
 Behaviour worth knowing:
 - **Auto-connects** to the last used earbuds on launch; use `oppogui --no-auto-connect` to start disconnected.
-- **Tray residency** — closing the window hides it to the system tray (battery level in the tooltip). Quit from the tray menu.
+- **Tray residency** — closing the window hides it to the system tray (battery level in the tooltip). Quit from the tray menu. On a desktop without a tray host, closing the window exits instead.
 - **Responsive layout** — the window adapts from mobile-sized single column to a two-column dashboard on wide screens; below 740px the tab bar switches to icons.
+- **Theme is per-session** — the app always launches dark; the Settings toggle applies until you quit.
 - Target a different device with `oppogui --mac 00:11:22:33:44:55`.
 
 ---

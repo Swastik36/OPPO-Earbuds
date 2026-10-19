@@ -147,40 +147,44 @@ Firing rapid query batches (firmware, EQ, game mode, battery) back-to-back cause
 
 ## 6. Software Architecture & GUI Engineering
 
-The project was structured into a clean, modular Python package (`oppo-control`):
+The project is structured into a clean, modular Python package (`oppo-control`):
 
 ```
-oppo-control/
+OPPO-Earbuds/
 ├── .github/
 │   └── workflows/ci.yml         # Automated GitHub Actions Pytest CI
 ├── src/
 │   └── oppo_control/
 │       ├── __init__.py
-│       ├── assets.py            # Dynamic SVG vector graphics generator
 │       ├── bluetooth_control.py # BlueZ D-Bus system disconnect/reconnect
 │       ├── codecs.py            # Binary & ASCII frame parsers
 │       ├── commands.py          # OPO v1 command encoders
 │       ├── device.py            # Device state machine & capability profiles
-│       ├── gui.py               # PySide6 Desktop GUI (HeyMelody theme)
-│       └── packet_logger.py     # Packet inspection & tracing tools
+│       ├── gui.py               # PySide6 Desktop GUI (coffee theme)
+│       └── ...                  # transport, protocol, devices, cli, exceptions
+├── scripts/
+│   └── packet_logger.py         # Packet inspection & tracing tools
 ├── tests/
-│   └── test_gui.py              # Pytest automated test suite (17/17 pass)
+│   ├── test_protocol.py         # Protocol/decoder unit tests
+│   ├── test_gui.py              # GUI behavior tests
+│   ├── test_cli.py              # CLI argument mapping test
+│   └── test_device.py           # Device capability/ANC rejection test
 ├── pyproject.toml
 └── README.md
 ```
 
-### 6.1 HeyMelody Aesthetic & Vector SVG Engine
-The Desktop GUI ([gui.py](file:///home/swastik/new-project/oppo%20gui/src/oppo_control/gui.py)) mirrors the official HeyMelody design aesthetic:
-* **Vector SVG Graphics ([assets.py](file:///home/swastik/new-project/oppo%20gui/src/oppo_control/assets.py))**: Generates crisp, scale-free vector silhouettes rendered via PySide6 `QSvgRenderer`.
-* **Inline Battery Badges**: Displays compact battery indicators (`L: 90% | R: 90% | Case: 100%`) directly below the main title header.
-* **Hero Product Display**: Displays centered earbud and case artwork cleanly without layout overlap.
-* **Scroll-Free Layout**: Optimized padding and spacing so all controls fit within standard window dimensions without scrollbars.
+### 6.1 Coffee Theme & QPainter Engine
+The Desktop GUI ([gui.py](src/oppo_control/gui.py)) uses the Espresso/Latte coffee palette:
+* **QPainter Silhouettes**: Bud and case artwork is drawn directly with `QPainter` paths, so it scales without external assets.
+* **Per-Bud Battery Badges**: Compact battery shells (`Left` / `Right` / `Case`) sit under each silhouette, with red → caramel → green bands.
+* **Dashboard Layout**: Fixed battery visual plus a scrolling control column; a two-column split appears at 1240px and wider.
+* **Segmented Navigation**: Four equal tabs with a sliding caramel pill; the bar switches to hand-drawn vector icons below 740px.
 
 ---
 
 ## 7. Verification & Release Status
 
-* **Test Suite**: 17/17 automated unit tests passing (`.venv/bin/python -m pytest -q`).
+* **Test Suite**: 22/22 automated unit tests passing (`.venv/bin/python -m pytest -q`).
 * **CI/CD Pipeline**: GitHub Actions workflow enabled with Python 3.12 and pip caching.
 * **Repository**: Hosted publicly on GitHub at [Swastik36/OPPO-Earbuds](https://github.com/Swastik36/OPPO-Earbuds).
 
@@ -197,7 +201,7 @@ The Desktop GUI ([gui.py](file:///home/swastik/new-project/oppo%20gui/src/oppo_c
                                        │
 [Phase 4: Hardware Fixes]  ──> Handled Errno 104 BT reset, Case bit-7 charging & TWS Master/Slave sync
                                        │
-[Phase 5: Desktop GUI]     ──> Built PySide6 App, SVG vector rendering & HeyMelody design system
+[Phase 5: Desktop GUI]     ──> Built PySide6 App, QPainter vector silhouettes & coffee design system
 ```
 
 ---
