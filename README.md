@@ -19,20 +19,33 @@ Built on top of the reverse-engineered **RFCOMM DLCI 30 (Server Channel 15)** Bl
 oppo-control/
 ├── pyproject.toml               # Build-system configuration (PEP 517/518)
 ├── README.md                    # Technical installation manual
-├── docs/                        # Specifications and references
-│   └── PROTOCOL.md
+├── install.sh                   # One-shot user-space installer (no root)
+├── oppogui.desktop              # Desktop launcher template
+├── docs/                        # Specifications and lab notes
+│   ├── PROTOCOL.md              # Master OPO v1 RFCOMM specification
+│   ├── GATT_PROFILE.md
+│   ├── PROTOCOL_NOTES.md
+│   ├── OPPO_PODS_COMPARE.md
+│   └── PROJECT_STATUS.md
 ├── captures/                    # Ground-truth binary captures
 │   └── README.md
+├── examples/                    # Minimal API usage examples
 ├── tests/                       # Offline automated test suite
-│   └── test_protocol.py
+│   ├── test_protocol.py
+│   └── test_gui.py
+├── Old/                         # Superseded mockups and reference screenshots
 └── src/
     └── oppo_control/
         ├── __init__.py
         ├── transport.py         # Async Linux RFCOMM socket wrapper
         ├── protocol.py          # Frame assembly and parsing engine
         ├── commands.py          # Command registers, enums, and decoders
+        ├── codecs.py            # Binary/ASCII payload decoders
+        ├── devices.py           # Hardware capability profiles
         ├── device.py            # High-level asynchronous API class
+        ├── bluetooth_control.py # BlueZ link control helpers
         ├── cli.py               # Command-line interface driver
+        ├── gui.py               # PySide6 desktop application
         └── exceptions.py        # System-wide custom exception definitions
 ```
 
@@ -43,13 +56,15 @@ oppo-control/
 Install automatically and register `OPPO Companion` directly in your **Linux Application / Start Menu**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Swastik36/OPPO-Gui/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Swastik36/OPPO-Earbuds/main/install.sh | bash
 ```
 
 Or run locally:
 ```bash
 chmod +x ./install.sh && ./install.sh
 ```
+
+The installer is user-space only: it creates an isolated virtualenv, symlinks `oppoctl` and `oppogui` into `~/.local/bin`, and registers the **OPPO Companion** launcher in your application menu. No root required.
 
 ---
 
@@ -59,7 +74,7 @@ If you wish to work on the codebase in editable mode:
 
 ```bash
 # Clone and enter the repository
-cd "oppo gui"
+cd OPPO-Earbuds
 
 # Install in editable mode with development dependencies
 ./.venv/bin/pip install -e .[dev]
@@ -67,9 +82,9 @@ cd "oppo gui"
 
 ---
 
-## 3. Running Tests
+## 4. Running Tests
 
-Verify the protocol framing, equalizer codecs, and battery decoders offline:
+Verify the protocol framing, equalizer codecs, battery decoders, and GUI instantiation offline:
 
 ```bash
 ./.venv/bin/pytest tests/
@@ -77,7 +92,7 @@ Verify the protocol framing, equalizer codecs, and battery decoders offline:
 
 ---
 
-## 4. Command-Line Utility (`oppoctl`)
+## 5. Command-Line Utility (`oppoctl`)
 
 The CLI utility `oppoctl` is automatically registered in your environment path upon installation.
 
@@ -97,6 +112,16 @@ oppoctl gamemode on
 
 # Dump capacitive Touch Gestures configuration matrix
 oppoctl gestures
+
+# Query or set the alert prompt tone volume (0-100)
+oppoctl volume 80
+
+# Ring the earbuds to locate them
+oppoctl find on
+
+# Record a live session to a log, or replay a recorded one
+oppoctl record session.log
+oppoctl replay session.log
 ```
 
 ### Specifying Target MAC Address
@@ -107,7 +132,26 @@ oppoctl --mac 00:11:22:33:44:55 battery
 
 ---
 
-## 5. Python API Usage
+## 6. Desktop Companion (`oppogui`)
+
+Launch **OPPO Companion** from your application menu, or run `oppogui` directly.
+
+| Tab | What it does |
+| :--- | :--- |
+| **Dashboard** | Live battery for both buds and the case, equalizer preset, low-latency game mode, alert sound volume, and an acoustic-control card (shown only for hardware that supports it) |
+| **Gestures** | Read the touch-gesture matrix from the buds, remap any trigger, and **Apply to Buds** to write the new mapping back |
+| **Settings** | Firmware version, find-my-earbuds ring, and app theme |
+| **Developer Tools** | Raw packet trace console and system-level Bluetooth link controls |
+
+Behaviour worth knowing:
+- **Auto-connects** to the last used earbuds on launch; use `oppogui --no-auto-connect` to start disconnected.
+- **Tray residency** — closing the window hides it to the system tray (battery level in the tooltip). Quit from the tray menu.
+- **Responsive layout** — the window adapts from mobile-sized single column to a two-column dashboard on wide screens; below 740px the tab bar switches to icons.
+- Target a different device with `oppogui --mac 00:11:22:33:44:55`.
+
+---
+
+## 7. Python API Usage
 
 Exposes a clean asynchronous API that handles sockets, packet streams, transaction matching, and pushes.
 
@@ -142,14 +186,14 @@ if __name__ == "__main__":
 
 ---
 
-## 6. Acknowledgements & Inspiration
+## 8. Acknowledgements & Inspiration
 
 Special thanks and recognition to:
 * **[Aasheesh](https://aasheesh.vercel.app/)**: Author of the pioneering reverse engineering analysis on OnePlus/OPPO TWS earbuds protocols. His research and writeups provided vital insights into the OPO protocol framing and architecture.
 
 ---
 
-## 7. Search Tags & Discoverability
+## 9. Search Tags & Discoverability
 
 `oppo-telemetry-control` • `earbud-control` • `oppo-enco-buds3-pro` • `heymelody-linux` • `heymelody-alternative` • `oppo-earbuds-linux` • `oneplus-buds-linux` • `realme-buds-linux` • `tws-telemetry` • `bluetooth-rfcomm-channel-15` • `bluez-oppo-driver` • `pyside6-oppo-gui`
 

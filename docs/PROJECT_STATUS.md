@@ -158,8 +158,14 @@ encobuds-linux/
 
 ## Stage 4: GUI
 * **Preferred Toolkit:** PySide6 (Qt)
-* **Status:** Not started. Replicate the glassmorphic `earbuds_connect_popup_v3.html` template.
+* **Status:** Completed. The desktop companion (`oppogui`) ships a coffee-themed
+  Espresso/Latte interface with: auto-connect on launch, live battery for both
+  buds and the case, equalizer / game-mode / alert-volume controls, an editable
+  touch-gesture matrix that writes back to the buds, system-tray residency, a
+  raw-packet trace console, and a responsive layout (mobile → fullscreen).
 
 ## Stage 5: Packaging
-* **Potential Formats:** pip, Flatpak, AppImage.
+* **Status:** In progress. User-space installer (`install.sh`) creates an
+  isolated virtualenv, symlinks `oppoctl` / `oppogui` into `~/.local/bin`, and
+  registers the application-menu launcher. Flatpak / AppImage not yet packaged.
 

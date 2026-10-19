@@ -182,7 +182,7 @@ The Desktop GUI ([gui.py](file:///home/swastik/new-project/oppo%20gui/src/oppo_c
 
 * **Test Suite**: 17/17 automated unit tests passing (`.venv/bin/python -m pytest -q`).
 * **CI/CD Pipeline**: GitHub Actions workflow enabled with Python 3.12 and pip caching.
-* **Repository**: Hosted publicly on GitHub at [Swastik36/OPPO-Gui](https://github.com/Swastik36/OPPO-Gui).
+* **Repository**: Hosted publicly on GitHub at [Swastik36/OPPO-Earbuds](https://github.com/Swastik36/OPPO-Earbuds).
 
 ---
 
