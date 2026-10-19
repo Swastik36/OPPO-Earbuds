@@ -482,6 +482,7 @@ class OppoDeviceWorker(QThread):
         self._retry_count = 0
         self._connect_event = None  # created once the event loop exists
         self._auto_connect = True  # connect once on startup without a click
+        self._connect_requested = False  # a click arrived before the loop existed
 
     def run(self):
         self.loop = asyncio.new_event_loop()
@@ -496,9 +497,11 @@ class OppoDeviceWorker(QThread):
         # again after auto-retries are exhausted. Set (not cleared) whenever
         # we're allowed to try connecting right now.
         self._connect_event = asyncio.Event()
-        if self._auto_connect:
+        if self._auto_connect or self._connect_requested or not self._running:
             # Fresh launch: try the remembered device immediately so the app
-            # shows live data instead of waiting for a click.
+            # shows live data instead of waiting for a click.  If stop() was
+            # called before the loop started, wake immediately so the task
+            # exits instead of waiting forever.
             self._connect_event.set()
 
         async def main_task():
@@ -602,14 +605,18 @@ class OppoDeviceWorker(QThread):
     def stop(self):
         self._running = False
         if self.loop and self.loop.is_running():
-            # Schedule disconnect then cancel main task — ensures disconnect finishes before loop exits
+            # Wake the connect gate, disconnect, then cancel the main task.
+            # The gate matters when the worker is idle (auto-connect off);
+            # without it wait() can join a thread whose loop never exits.
             async def _shutdown():
+                if self._connect_event:
+                    self._connect_event.set()
                 if self.device:
                     try:
                         await self.device.disconnect()
                     except Exception:
                         pass
-                if hasattr(self, 'main_task_obj') and self.main_task_obj:
+                if getattr(self, 'main_task_obj', None):
                     self.main_task_obj.cancel()
             asyncio.run_coroutine_threadsafe(_shutdown(), self.loop)
 
@@ -620,6 +627,7 @@ class OppoDeviceWorker(QThread):
 
     def request_connect(self):
         """Reset the retry budget and allow the main loop to attempt a connection."""
+        self._connect_requested = True
         if self.loop and self._connect_event:
             def _do():
                 self._retry_count = 0
@@ -1386,7 +1394,11 @@ class MainWindow(QMainWindow):
 
         self._setup_tray()
 
-        self.worker.start()
+        # Start eagerly only for the normal auto-connect launch.  With
+        # --no-auto-connect the worker starts on the first Connect click,
+        # which keeps idle windows (and tests) free of a parked QThread.
+        if self._auto_connect:
+            self.worker.start()
 
     # --- System Tray (residency: close hides, quit is explicit) ---
 
@@ -2152,6 +2164,11 @@ class MainWindow(QMainWindow):
         else:
             self.connect_btn.setEnabled(False)
             self.connect_btn.setText("Connecting...")
+            # The worker is started lazily when auto-connect is off.  Start it
+            # before requesting a connection; request_connect() remembers the
+            # click if run() has not created the event loop yet.
+            if not self.worker.isRunning():
+                self.worker.start()
             self.worker.request_connect()
 
     def _on_force_bt_disconnect_clicked(self):

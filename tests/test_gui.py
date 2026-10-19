@@ -181,6 +181,23 @@ def test_gui_apply_gestures_noop_when_unchanged(q_app):
         window.worker.wait()
 
 
+def test_gui_connect_click_starts_lazy_worker(q_app, monkeypatch):
+    """With auto-connect off, the first Connect click must start the worker."""
+    window = MainWindow(auto_connect=False)
+    try:
+        calls = []
+        monkeypatch.setattr(window.worker, "start", lambda: calls.append("start"))
+        monkeypatch.setattr(window.worker, "request_connect", lambda: calls.append("connect"))
+
+        window._on_connect_button_clicked()
+
+        assert calls == ["start", "connect"]
+        assert window.connect_btn.text() == "Connecting..."
+    finally:
+        window.worker.stop()
+        window.worker.wait()
+
+
 def test_gui_gesture_rows_distinguish_basic_and_custom(q_app):
     """The 24-record matrix has two tables; rows must say which one they are."""
     window = MainWindow(auto_connect=False)
