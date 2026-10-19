@@ -55,7 +55,14 @@ class TouchGesture:
         ear = "Left" if self.earbud_id == 1 else "Right"
         triggers = {1: "Single Tap", 2: "Double Tap", 3: "Triple Tap", 4: "Long Press", 5: "Double & Hold", 6: "Slide"}
         trig = triggers.get(self.trigger_id, f"Trig-{self.trigger_id}")
-        funcs = {0: "No Action", 1: "Play/Pause", 5: "Prev Track", 6: "Next Track", 0x0B: "Volume-", 0x0C: "Volume+", 0x1C: "Game Mode Toggle", 0x1D: "Game Mode Toggle"}
+        funcs = {
+            0: "No Action", 1: "Play/Pause",
+            3: "Voice Assistant", 4: "Voice Assistant (alt)",
+            5: "Prev Track", 6: "Next Track",
+            0x0B: "Volume-", 0x0C: "Volume+",
+            0x11: "Game Mode",
+            0x1C: "Game Mode Toggle", 0x1D: "Game Mode Toggle",
+        }
         func = funcs.get(self.function_id, f"Func-{hex(self.function_id)}")
         return f"TouchGesture({ear} {trig} ➔ {func})"
 
@@ -149,13 +156,13 @@ def encode_gestures_read(seq_id: int) -> bytes:
     return OppoFrame(group=0x08, cmd_id=0x01, seq_id=seq_id, payload=bytes([0x02, 0x03])).to_bytes()
 
 def parse_gestures_response(payload: bytes) -> List[TouchGesture]:
-    if len(payload) < 4:
+    if len(payload) < 2:
         return None
-    num_records = payload[3]
-    records_data = payload[4:]
+    num_records = payload[1]
+    records_data = payload[2:]
     if len(records_data) < num_records * 4:
         return None
-        
+
     gestures = []
     for i in range(num_records):
         offset = i * 4

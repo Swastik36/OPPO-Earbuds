@@ -16,7 +16,7 @@ This directory is the GUI package initializer. The PySide6 desktop application l
 - App always launches dark; the Settings theme toggle is per-session only (not persisted).
 - No per-device MAC is sent without resolution: `--mac` wins, then the QSettings-remembered device, then the `DEFAULT_MAC` fallback.
 - The app auto-connects on launch to the remembered device; `--no-auto-connect` restores click-to-connect.
-- Gesture mapping is editable (per-gesture function dropdown + Apply writes via `device.set_gestures()`); nothing is sent until Apply, and Apply re-enables after the write succeeds or fails.
+- Gesture mapping is editable (per-gesture function dropdown + Apply). Rows are labelled Basic/Custom because the hardware exposes two 6-trigger tables. Apply writes only changed records, one at a time (HeyMelody's count=1 behavior), re-reads the matrix, and reports any mapping the buds ignored; nothing is sent until Apply, and Apply re-enables after success or failure.
 - Window closes to the system tray (one-time notice); Quit is explicit via the tray menu. Without a tray host, closing the last window exits.
 - Navigation is a 4-tab SegmentedTabs bar (Dashboard / Gestures / Settings / Developer Tools): fixed equal tabs, no scroll, caramel pill slides via 220ms QPropertyAnimation. API: setCurrentRow / currentChanged.
 - Below 740px (60% of the laptop breakpoint) the tabs go icon-only: hand-drawn 1.8px vector line icons (grid, touch-ripple, gear, code brackets via `paint_tab_icon`), two-tone per theme, text moves to tooltips.

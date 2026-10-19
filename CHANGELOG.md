@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added
+*   `oppoctl gesture <ear> <action> <trigger> <function>` remaps one touch-gesture record, verifies the read-back, and exits nonzero when the buds acknowledge but ignore the write. `--dry-run` previews the change.
+*   Gesture rows are labelled `Basic` / `Custom` so the two six-trigger tables are distinguishable.
+
+### Fixed
+*   Touch-gesture reads now parse the real response header (`[status] [count]` at payload offsets 0–1) and return all 24 records instead of silently exposing only the first one. The write format was already correct and is confirmed against the capture library.
+*   Gesture labels now include Voice Assistant (`0x03`/`0x04`) and Game Mode (`0x11`) so the GUI can display and remap those functions.
+*   **Apply to Buds** now writes only the records that changed, one at a time (matching HeyMelody's captured count=1 writes), then verifies each read-back and reports any mapping the device ignored.
+
+---
+
 ## [1.1.0] - 2026-10-19
 Desktop companion overhaul.
 

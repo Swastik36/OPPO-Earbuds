@@ -9,6 +9,7 @@ import logging
 import asyncio
 import math
 import time
+from dataclasses import replace
 from typing import Dict, List, Optional
 from PySide6.QtCore import (
     Qt, QThread, Signal, Slot, QSize, QRectF, QPointF, QSettings,
@@ -42,10 +43,13 @@ DEFAULT_MAC = "60:55:56:22:49:A0"
 GESTURE_FUNCTIONS: Dict[int, str] = {
     0x00: "No Action",
     0x01: "Play/Pause",
+    0x03: "Voice Assistant",
+    0x04: "Voice Assistant (alt)",
     0x05: "Previous Track",
     0x06: "Next Track",
     0x0B: "Volume Down",
     0x0C: "Volume Up",
+    0x11: "Game Mode",
     0x1C: "Game Mode Toggle",
     0x1D: "Game Mode Toggle (alt)",
 }
@@ -53,6 +57,52 @@ TRIGGER_NAMES = {
     1: "Single Tap", 2: "Double Tap", 3: "Triple Tap",
     4: "Long Press", 5: "Double & Hold", 6: "Slide",
 }
+
+
+def gesture_key(gesture: TouchGesture):
+    """Identity of a gesture slot, independent of its assigned function."""
+    return (gesture.earbud_id, gesture.action_type, gesture.trigger_id)
+
+
+def changed_gestures(edited, baseline):
+    """Return only the records whose function differs from the last read-back.
+
+    HeyMelody writes one 4-byte record at a time.  Sending the full 24-record
+    matrix back would touch read-only/invalid rows and makes a partial failure
+    hard to diagnose.
+    """
+    original = {gesture_key(g): g for g in baseline}
+    changes = []
+    for gesture in edited:
+        base = original.get(gesture_key(gesture))
+        if base is None or base.function_id != gesture.function_id:
+            changes.append(gesture)
+    return changes
+
+
+async def apply_gesture_changes(device, changes):
+    """Write each changed record, then verify the full read-back.
+
+    Returns ``(updated, rejected, failures)``.  ``rejected`` are records the
+    buds acknowledged but did not apply; ``failures`` are transport/command
+    errors.  A partial write is still verified so the caller can show the
+    real hardware state.
+    """
+    failures = []
+    for gesture in changes:
+        try:
+            await device.set_gestures([gesture])
+        except Exception as exc:
+            failures.append((gesture, str(exc)))
+
+    updated = await device.get_gestures()
+    confirmed = {gesture_key(g): g for g in updated}
+    rejected = [
+        g for g in changes
+        if (confirmed.get(gesture_key(g)) is None
+            or confirmed[gesture_key(g)].function_id != g.function_id)
+    ]
+    return updated, rejected, failures
 
 # Coffee palette (Espresso Crema): shared by stylesheets + custom painters.
 COFFEE = {
@@ -684,16 +734,36 @@ class OppoDeviceWorker(QThread):
             asyncio.run_coroutine_threadsafe(fetch(), self.loop)
 
     def save_gestures(self, gestures):
-        """Write an edited gesture map back to the buds, then re-read it."""
+        """Write changed records one at a time, then verify the read-back.
+
+        Matches HeyMelody's captured count=1 writes and avoids rewriting the
+        read-only rows of the 24-record matrix.
+        """
         if self.device and self.loop:
             async def _task():
                 try:
-                    await self.device.set_gestures(gestures)
-                    updated = await self.device.get_gestures()
-                    self.gestures_updated.emit(updated)
+                    updated, rejected, failures = await apply_gesture_changes(
+                        self.device, gestures
+                    )
                 except Exception as e:
-                    logger.error(f"Error saving gestures: {e}")
-                    self.error_occurred.emit(f"Failed to save gestures: {e}")
+                    logger.error(f"Error reading gestures after write: {e}")
+                    self.error_occurred.emit(f"Failed to read gestures after write: {e}")
+                    return
+
+                self.gestures_updated.emit(updated)
+
+                if failures or rejected:
+                    parts = []
+                    if rejected:
+                        parts.append("ignored by the buds: " + ", ".join(repr(g) for g in rejected))
+                    if failures:
+                        parts.append(
+                            "write errors: "
+                            + "; ".join(f"{g!r}: {err}" for g, err in failures)
+                        )
+                    message = "Gesture apply incomplete — " + " | ".join(parts)
+                    logger.error(message)
+                    self.error_occurred.emit(message)
             asyncio.run_coroutine_threadsafe(_task(), self.loop)
 
     def set_anc_mode(self, mode: str):
@@ -1196,7 +1266,8 @@ class MainWindow(QMainWindow):
         self._auto_connect = auto_connect
         self._quit_requested = False
         self._tray_notice_shown = bool(self.settings.value("ui/tray_notice_shown", False))
-        self._gestures = []  # last confirmed TouchGesture list from the buds
+        self._gestures = []  # editable copy of the matrix
+        self._gesture_baseline = []  # last confirmed read-back from the buds
 
         self.setWindowTitle("OPPO Linux Companion")
         self.setMinimumSize(360, 480)
@@ -1909,6 +1980,7 @@ class MainWindow(QMainWindow):
     @Slot(list)
     def _on_gestures_received(self, gestures: list):
         self._gestures = list(gestures)
+        self._gesture_baseline = [replace(g) for g in gestures]
         for i in reversed(range(self.scroll_layout.count())):
             widget = self.scroll_layout.itemAt(i).widget()
             if widget:
@@ -1935,8 +2007,9 @@ class MainWindow(QMainWindow):
             row_layout.setContentsMargins(10, 4, 10, 4)
 
             ear = "Left" if gesture.earbud_id == 1 else "Right"
+            action = "Basic" if gesture.action_type == 1 else "Custom"
             trig = TRIGGER_NAMES.get(gesture.trigger_id, f"Trig-{gesture.trigger_id}")
-            lbl = QLabel(f"{ear} · {trig}")
+            lbl = QLabel(f"{ear} · {action} · {trig}")
             lbl.setFont(QFont("DejaVu Sans", 9, QFont.Bold))
             lbl.setStyleSheet("border: none; background: transparent;")
             row_layout.addWidget(lbl)
@@ -1950,6 +2023,10 @@ class MainWindow(QMainWindow):
             except ValueError:
                 combo.addItem(f"Unknown ({hex(gesture.function_id)})", gesture.function_id)
                 combo.setCurrentIndex(combo.count() - 1)
+            combo.setToolTip(
+                "Some trigger/function combinations are read-only on the buds.\n"
+                "Apply verifies each write and reports any mapping the device ignored."
+            )
             combo.setProperty("gesture_index", row_idx)
             combo.currentIndexChanged.connect(self._on_gesture_combo_changed)
             row_layout.addWidget(combo)
@@ -1968,10 +2045,16 @@ class MainWindow(QMainWindow):
 
     def _on_apply_gestures(self):
         if self.is_connected and self._gestures:
+            changes = [replace(g) for g in changed_gestures(self._gestures, self._gesture_baseline)]
+            if not changes:
+                self.status_lbl.setText("No changes")
+                self.status_lbl.setStyleSheet(f"color: {COFFEE['dark_sub']}; font-size: 10px;")
+                self.btn_apply_gestures.setEnabled(self.is_connected)
+                return
             self.status_lbl.setText("Applying...")
             self.status_lbl.setStyleSheet(f"color: {COFFEE['warn']}; font-size: 10px;")
             self.btn_apply_gestures.setEnabled(False)
-            self.worker.save_gestures(list(self._gestures))
+            self.worker.save_gestures(changes)
 
     @Slot(str, str, str)
     def _on_packet_traced(self, direction: str, raw_hex: str, desc: str):

@@ -155,6 +155,7 @@ encobuds-linux/
   * Implemented dual-format universal decoders for battery and firmware tracking.
   * Mapped touch gesture write commands (`0x0401`), Find My Device alerts (`0x0400`), and prompt tone volumes (`0x0130`/`0x0427`).
   * Created an offline automated test suite (`tests/test_protocol.py`) and a production CLI driver (`oppoctl`). All tests passed successfully.
+  * Verified the 24-record gesture matrix and one-record write path on live Buds3 Pro hardware: basic single-tap Play/Pause ↔ No Action, basic long-press No Action ↔ Volume+, and custom single-tap No Action ↔ Game Mode Toggle all applied and restored. Unsupported pairs (e.g. long-press → Play/Pause) are acknowledged but ignored by the buds, so the CLI/GUI now verify the read-back and report them.
 
 ## Stage 4: GUI
 * **Preferred Toolkit:** PySide6 (Qt)
@@ -162,7 +163,8 @@ encobuds-linux/
   Espresso/Latte interface with: auto-connect on launch, live battery for both
   buds and the case, equalizer / game-mode / alert-volume controls, an editable
   touch-gesture matrix with Apply-to-Buds write-back (live hardware round-trip
-  still pending), system-tray residency, a raw-packet trace console, and a
+  verified for basic and custom records; unsupported trigger/function pairs are
+  reported after read-back), system-tray residency, a raw-packet trace console, and a
   responsive layout (mobile → fullscreen).
 
 ## Stage 5: Packaging

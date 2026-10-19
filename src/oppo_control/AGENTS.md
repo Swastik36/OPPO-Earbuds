@@ -10,7 +10,7 @@ This directory contains the primary `oppo_control` Python package handling async
 # Local Contracts
 
 - [transport.py](transport.py): Must implement non-blocking asynchronous socket communication via `asyncio` using Linux RFCOMM sockets (`AF_BLUETOOTH`, `SOCK_STREAM`, `BTPROTO_RFCOMM`).
-- [protocol.py](protocol.py): Handles OPO v1 header verification (`0x55`), payload length, command ID extraction, and CRC/checksum calculation.
+- [protocol.py](protocol.py): Handles OPO v1 header verification (`0xAA` sync byte), payload length, command ID extraction, and CRC/checksum calculation.
 - [commands.py](commands.py): Register definitions for battery levels, EQ profiles (`original`, `bass`, `vocal`, `bass_boost`), ANC modes, low-latency game mode, and touch gestures.
 - [device.py](device.py): High-level asynchronous `OppoDevice` class exposing convenient async methods (`get_battery()`, `set_eq()`, `set_game_mode()`).
 - [cli.py](cli.py): Entrypoint for the `oppoctl` command-line utility.
@@ -19,6 +19,7 @@ This directory contains the primary `oppo_control` Python package handling async
 
 - Socket communication must handle connection dropouts, timeouts, and missing Bluetooth devices gracefully without crashing.
 - Keep protocol frame magic bytes and command constants centralized in `commands.py` and `protocol.py`.
+- Touch-gesture responses are `[status][count][records]`: read the count at payload offset 1 and records from offset 2 (see [../docs/PROTOCOL_NOTES.md](../docs/PROTOCOL_NOTES.md)).
 - Desktop behavior contracts live in [../gui/AGENTS.md](../gui/AGENTS.md); [gui.py](gui.py) is the `oppogui` entrypoint.
 
 # Verification

@@ -107,8 +107,23 @@ The payload ends in 5 bytes representing the parsed version levels:
     *   **RX (Response):** `AA 69 00 00 08 81 [Seq] 62 00 00 18 01 01 ...`
 
 #### Gesture Matrix Format:
-The response contains `18` (hex, which is 24 records) followed by 24 records of **4 bytes** each:
+The response payload is `[status] [count] [record * count]`:
+`00 18` means status `00` and **24 records** (`0x18`). The records start at
+payload offset **2** (byte 3 of the frame payload region), not offset 4.
+Reading the count from offset 3 yields a bogus count of `01` and silently
+exposes only the first gesture.
+
+Each record is **4 bytes**:
 `[Earbud_ID] [Action_Type] [Gesture_Trigger_ID] [Function_Action_ID]`
+
+Equivalently, Gadgetbridge models the middle two bytes as a little-endian
+16-bit type code: `[side:1] [type:2 LE] [value:1]`, where
+`type = (trigger_id << 8) | action_type`. This is the same 4-byte layout.
+
+The write payload is `[count:1] [record * count]`, and the ack is
+`0x8401` with a one-byte status (`00` = success). A captured write of one
+record is `01 01 01 01 00` (count 1, Left/Single/Basic → No Action); the
+matching read-back shows `01 01 01 00`.
 
 #### Mappings:
 1.  **Earbud ID (Byte 0):** `01` = Left, `02` = Right
@@ -123,10 +138,13 @@ The response contains `18` (hex, which is 24 records) followed by 24 records of 
 4.  **Function Action ID (Byte 3):**
     *   `00`: No Action
     *   `01`: Play / Pause
+    *   `03`: Voice Assistant (OPPO)
+    *   `04`: Voice Assistant (Realme)
     *   `05`: Previous Track
     *   `06`: Next Track
     *   `0B` or `0C`: Volume Control
-    *   `1C` or `1D`: Game Mode Toggle
+    *   `11`: Game Mode
+    *   `1C` or `1D`: Game Mode Toggle (observed on Buds3 Pro custom gestures)
 
 ---
 

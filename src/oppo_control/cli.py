@@ -3,6 +3,7 @@ import asyncio
 import sys
 import os
 import time
+from dataclasses import replace
 from .device import OppoDevice, get_friendly_description
 from .protocol import OppoFrame
 from .commands import EQPreset
@@ -17,6 +18,33 @@ EQ_CHOICES = {
     "vocal": EQPreset.VOCAL,
     "bass_boost": EQPreset.BASS_BOOST,
     "treble_boost": EQPreset.TREBLE_BOOST,
+}
+
+# Gesture remapping names.  The wire IDs are shared by the GUI and the
+# hardware matrix; keep them in sync with GESTURE_FUNCTIONS in gui.py and
+# the TouchGesture map in commands.py.
+GESTURE_EAR_CHOICES = {"left": 1, "right": 2}
+GESTURE_ACTION_CHOICES = {"basic": 1, "custom": 6}
+GESTURE_TRIGGER_CHOICES = {
+    "single": 1,
+    "double": 2,
+    "triple": 3,
+    "long": 4,
+    "double_hold": 5,
+    "slide": 6,
+}
+GESTURE_FUNCTION_CHOICES = {
+    "none": 0x00,
+    "play_pause": 0x01,
+    "voice_assistant": 0x03,
+    "voice_assistant_alt": 0x04,
+    "previous": 0x05,
+    "next": 0x06,
+    "volume_down": 0x0B,
+    "volume_up": 0x0C,
+    "game_mode": 0x11,
+    "game_mode_toggle": 0x1C,
+    "game_mode_toggle_alt": 0x1D,
 }
 
 async def run_cli(args):
@@ -94,6 +122,49 @@ async def run_cli(args):
                 for gesture in gestures:
                     print(f"  ➔ {gesture}")
 
+            elif args.subcommand == "gesture":
+                ear = GESTURE_EAR_CHOICES[args.ear]
+                action = GESTURE_ACTION_CHOICES[args.action]
+                trigger = GESTURE_TRIGGER_CHOICES[args.trigger]
+                function = GESTURE_FUNCTION_CHOICES[args.function]
+                gestures = await device.get_gestures()
+                target = next(
+                    (g for g in gestures
+                     if (g.earbud_id, g.action_type, g.trigger_id) == (ear, action, trigger)),
+                    None,
+                )
+                if target is None:
+                    raise OppoError(
+                        f"No gesture record for ear={args.ear} action={args.action} "
+                        f"trigger={args.trigger}"
+                    )
+                if target.function_id == function:
+                    print(f"[+] Already set: {target!r}")
+                    return
+                changed = replace(target, function_id=function)
+                print(f"[+] {target!r}  ->  {changed!r}")
+                if args.dry_run:
+                    print("[+] Dry run: nothing written.")
+                    return
+
+                # HeyMelody writes one 4-byte record at a time (count=1), not
+                # the whole 24-record matrix.  Do the same, then verify.
+                await device.set_gestures([changed])
+                updated = await device.get_gestures()
+                applied = next(
+                    (g for g in updated
+                     if (g.earbud_id, g.action_type, g.trigger_id) == (ear, action, trigger)),
+                    None,
+                )
+                if applied is None or applied.function_id != function:
+                    print(
+                        "[-] The buds acknowledged the write but did not apply it.\n"
+                        "    This trigger/function combination may be read-only on this firmware.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+                print(f"[+] Applied: {applied!r}")
+
             elif args.subcommand == "find":
                 start = args.action == "start"
                 await device.find_device(start)
@@ -144,6 +215,13 @@ def main():
     gm_parser.add_argument("state", choices=["on", "off"], help="Target Game Mode state")
 
     subparsers.add_parser("gestures", help="Dump Touch Gestures configuration matrix")
+
+    gesture_parser = subparsers.add_parser("gesture", help="Remap one touch gesture")
+    gesture_parser.add_argument("ear", choices=list(GESTURE_EAR_CHOICES), help="Earbud side")
+    gesture_parser.add_argument("action", choices=list(GESTURE_ACTION_CHOICES), help="Basic or custom gesture table")
+    gesture_parser.add_argument("trigger", choices=list(GESTURE_TRIGGER_CHOICES), help="Touch trigger")
+    gesture_parser.add_argument("function", choices=list(GESTURE_FUNCTION_CHOICES), help="Function to assign")
+    gesture_parser.add_argument("--dry-run", action="store_true", help="Print the change without writing")
     
     find_parser = subparsers.add_parser("find", help="Toggle ringing alert to locate earbuds")
     find_parser.add_argument("action", choices=["start", "stop"], help="Start or stop ringing alert")

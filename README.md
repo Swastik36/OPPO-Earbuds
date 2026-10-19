@@ -129,6 +129,15 @@ oppoctl gamemode on
 # Dump capacitive Touch Gestures configuration matrix
 oppoctl gestures
 
+# Remap one gesture record, verify the read-back, and report ignored writes
+oppoctl gesture left basic single play_pause
+oppoctl gesture right basic double next
+oppoctl gesture left basic long volume_up
+oppoctl gesture left custom double game_mode_toggle
+
+# Preview a remap without writing
+oppoctl gesture left basic single none --dry-run
+
 # Query or set the alert prompt tone volume (0-100)
 oppoctl volume 80
 
@@ -146,6 +155,16 @@ By default, `oppoctl` targets the hardware address `60:55:56:22:49:A0`. You can 
 oppoctl --mac 00:11:22:33:44:55 battery
 ```
 
+### Gesture Arguments
+`oppoctl gesture` takes four positional arguments:
+`ear` (`left`/`right`), `action` (`basic`/`custom`), `trigger`
+(`single`/`double`/`triple`/`long`/`double_hold`/`slide`), and `function`
+(`none`/`play_pause`/`voice_assistant`/`voice_assistant_alt`/`previous`/`next`/`volume_down`/`volume_up`/`game_mode`/`game_mode_toggle`/`game_mode_toggle_alt`).
+
+The command writes one 4-byte record (like HeyMelody), re-reads the matrix,
+and exits nonzero if the buds acknowledge but ignore the mapping. Some
+trigger/function pairs are read-only on the Buds3 Pro firmware.
+
 ---
 
 ## 6. Desktop Companion (`oppogui`)
@@ -155,7 +174,7 @@ Launch **OPPO Companion** from your application menu, or run `oppogui` directly.
 | Tab | What it does |
 | :--- | :--- |
 | **Dashboard** | Live battery for both buds and the case, equalizer preset, low-latency game mode, alert sound volume, and an acoustic-control card (shown only for hardware that supports it) |
-| **Gestures** | Read the touch-gesture matrix from the buds, remap any trigger, and **Apply to Buds** to write the new mapping back |
+| **Gestures** | Read the 24-record touch-gesture matrix, remap any Basic/Custom trigger, and **Apply to Buds**; writes only changed records and verifies the read-back |
 | **Settings** | Firmware version, find-my-earbuds ring, and app theme |
 | **Developer Tools** | Raw packet trace console and system-level Bluetooth link controls |
 

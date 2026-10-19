@@ -189,13 +189,18 @@ class GestureCodec:
 
     @staticmethod
     def parse_response(payload: bytes) -> Optional[List[TouchGesture]]:
-        if len(payload) < 4:
+        # Response payload: [status/version] [count] [record * count]
+        # Record: [earbud_id] [action_type] [trigger_id] [function_id]
+        # The count is the second byte; records start at byte 2.  The old
+        # parser read payload[3] and started at payload[4], which silently
+        # exposed only the first record of a real 24-record matrix.
+        if len(payload) < 2:
             return None
-        num_records = payload[3]
-        records_data = payload[4:]
+        num_records = payload[1]
+        records_data = payload[2:]
         if len(records_data) < num_records * 4:
             return None
-            
+
         gestures = []
         for i in range(num_records):
             offset = i * 4

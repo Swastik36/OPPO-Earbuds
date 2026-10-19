@@ -1,13 +1,14 @@
 import os
+import asyncio
 import pytest
 
 # Configure headless offscreen rendering for Qt runner
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
-from PySide6.QtWidgets import QApplication, QBoxLayout
+from PySide6.QtWidgets import QApplication, QBoxLayout, QLabel
 from PySide6.QtCore import Qt
 from oppo_control.commands import TouchGesture
-from oppo_control.gui import MainWindow
+from oppo_control.gui import MainWindow, changed_gestures, apply_gesture_changes
 from oppo_control.devices import EncoBuds3ProProfile, OnePlusNordBuds3Profile
 
 @pytest.fixture(scope="session")
@@ -145,6 +146,132 @@ def test_gui_silhouette_paint_rendering(q_app):
 
 def _gesture():
     return TouchGesture(earbud_id=1, action_type=1, trigger_id=1, function_id=0x01)
+
+
+def test_changed_gestures_returns_only_edited_records():
+    """Apply must not rewrite the full 24-record matrix for one edit."""
+    baseline = [
+        TouchGesture(1, 1, 1, 0x01),
+        TouchGesture(1, 1, 2, 0x05),
+    ]
+    edited = [
+        TouchGesture(1, 1, 1, 0x00),
+        TouchGesture(1, 1, 2, 0x05),
+    ]
+    assert changed_gestures(edited, baseline) == [edited[0]]
+
+
+def test_gui_apply_gestures_noop_when_unchanged(q_app):
+    """An unchanged matrix must not touch the hardware or disable Apply."""
+    window = MainWindow(auto_connect=False)
+    try:
+        window.is_connected = True
+        window._gestures = [_gesture()]
+        window._gesture_baseline = [_gesture()]
+        calls = []
+        window.worker.save_gestures = lambda gestures: calls.append(gestures)
+
+        window._on_apply_gestures()
+
+        assert calls == []
+        assert window.status_lbl.text() == "No changes"
+        assert window.btn_apply_gestures.isEnabled() is True
+    finally:
+        window.worker.stop()
+        window.worker.wait()
+
+
+def test_gui_gesture_rows_distinguish_basic_and_custom(q_app):
+    """The 24-record matrix has two tables; rows must say which one they are."""
+    window = MainWindow(auto_connect=False)
+    try:
+        window._on_gestures_received([
+            TouchGesture(1, 1, 1, 0x01),
+            TouchGesture(1, 6, 1, 0x00),
+        ])
+        labels = []
+        for i in range(window.scroll_layout.count()):
+            widget = window.scroll_layout.itemAt(i).widget()
+            if widget:
+                labels.extend(label.text() for label in widget.findChildren(QLabel))
+        assert "Left · Basic · Single Tap" in labels
+        assert "Left · Custom · Single Tap" in labels
+    finally:
+        window.worker.stop()
+        window.worker.wait()
+
+
+class _FakeGestureDevice:
+    def __init__(self, matrix, accept=True):
+        self.matrix = [_copy_gesture(g) for g in matrix]
+        self.accept = accept
+        self.writes = []
+
+    async def set_gestures(self, gestures):
+        self.writes.append(list(gestures))
+        if not self.accept:
+            return
+        for change in gestures:
+            for i, current in enumerate(self.matrix):
+                if _key(current) == _key(change):
+                    self.matrix[i] = _copy_gesture(change)
+
+    async def get_gestures(self):
+        return [_copy_gesture(g) for g in self.matrix]
+
+
+class _FailingGestureDevice(_FakeGestureDevice):
+    async def set_gestures(self, gestures):
+        self.writes.append(list(gestures))
+        raise RuntimeError("transport closed")
+
+
+def _key(g):
+    return (g.earbud_id, g.action_type, g.trigger_id)
+
+
+def _copy_gesture(g):
+    return TouchGesture(g.earbud_id, g.action_type, g.trigger_id, g.function_id)
+
+
+def test_apply_gesture_changes_verifies_accepted_and_ignored_writes():
+    """The helper must report a silent no-op instead of claiming success."""
+    baseline = [TouchGesture(1, 1, 1, 0x01), TouchGesture(1, 1, 2, 0x05)]
+    changed = TouchGesture(1, 1, 1, 0x00)
+
+    accepted = _FakeGestureDevice(baseline, accept=True)
+    updated, rejected, failures = asyncio.run(
+        apply_gesture_changes(accepted, [changed])
+    )
+    assert accepted.writes == [[changed]]
+    assert failures == []
+    assert rejected == []
+    assert updated[0].function_id == 0x00
+
+    ignored = _FakeGestureDevice(baseline, accept=False)
+    updated, rejected, failures = asyncio.run(
+        apply_gesture_changes(ignored, [changed])
+    )
+    assert ignored.writes == [[changed]]
+    assert failures == []
+    assert rejected == [changed]
+    assert updated[0].function_id == 0x01
+
+
+def test_apply_gesture_changes_reports_transport_failure():
+    baseline = [TouchGesture(1, 1, 1, 0x01)]
+    changed = TouchGesture(1, 1, 1, 0x00)
+    failed = _FailingGestureDevice(baseline)
+
+    updated, rejected, failures = asyncio.run(
+        apply_gesture_changes(failed, [changed])
+    )
+
+    assert len(failures) == 1
+    assert failures[0][0] == changed
+    assert "transport closed" in failures[0][1]
+    assert rejected == [changed]
+    assert updated[0].function_id == 0x01
 
 
 def test_gui_apply_gestures_reenables_after_success(q_app):

@@ -12,7 +12,9 @@ from oppo_control.commands import (
     encode_eq_preset, encode_eq_read, encode_eq_write, encode_firmware_read,
     encode_game_mode_read, encode_game_mode_write, encode_gestures_read,
     encode_volume_read, encode_volume_write, parse_volume_response,
+    TouchGesture, parse_gestures_response,
 )
+from oppo_control.codecs import GestureCodec
 from oppo_control.exceptions import ChecksumValidationError, MalformedFrameError
 
 def test_encode_eq_bass_boost():
@@ -226,3 +228,53 @@ def test_polled_case_charging_bit_masking():
     assert device.battery.case.is_charging is True, "Case charging status must be updated from polled response"
 
 
+
+
+def test_gesture_response_parses_all_24_captured_records():
+    """Real hardware returns 24 records: [status] [count] [ear, action, trigger, func]*.
+
+    Ground truth is captures/btsnoop_205240.log (response seq 0x81).  The old
+    parser read payload[3] as the count and started records at payload[4],
+    which silently exposed only one gesture.
+    """
+    payload = bytes.fromhex(
+        "00 18 "
+        "01 01 01 01 01 01 02 06 01 01 03 05 01 01 04 00 "
+        "01 01 05 00 01 01 06 0C 02 01 01 01 02 01 02 06 "
+        "02 01 03 05 02 01 04 00 02 01 05 00 02 01 06 0B "
+        "01 06 01 00 01 06 02 1D 01 06 03 00 01 06 04 00 "
+        "01 06 05 00 01 06 06 1C 02 06 01 00 02 06 02 1D "
+        "02 06 03 00 02 06 04 00 02 06 05 00 02 06 06 1C"
+    )
+
+    gestures = GestureCodec.parse_response(payload)
+    assert gestures is not None
+    assert len(gestures) == 24
+
+    # Left basic touch
+    assert gestures[0] == TouchGesture(1, 1, 1, 0x01)
+    assert gestures[1] == TouchGesture(1, 1, 2, 0x06)
+    assert gestures[2] == TouchGesture(1, 1, 3, 0x05)
+    assert gestures[5] == TouchGesture(1, 1, 6, 0x0C)
+
+    # Right basic touch
+    assert gestures[6] == TouchGesture(2, 1, 1, 0x01)
+    assert gestures[11] == TouchGesture(2, 1, 6, 0x0B)
+
+    # Left custom swipe/long-press
+    assert gestures[12] == TouchGesture(1, 6, 1, 0x00)
+    assert gestures[13] == TouchGesture(1, 6, 2, 0x1D)
+    assert gestures[17] == TouchGesture(1, 6, 6, 0x1C)
+
+    # Right custom swipe/long-press
+    assert gestures[18] == TouchGesture(2, 6, 1, 0x00)
+    assert gestures[23] == TouchGesture(2, 6, 6, 0x1C)
+
+    # The duplicate parser in commands.py must agree.
+    assert parse_gestures_response(payload) == gestures
+
+
+def test_gesture_response_rejects_truncated_matrix():
+    """A short matrix must fail visibly rather than invent a partial map."""
+    payload = bytes.fromhex("00 18 01 01 01 01")
+    assert GestureCodec.parse_response(payload) is None

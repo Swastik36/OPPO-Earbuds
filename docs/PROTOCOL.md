@@ -136,13 +136,16 @@ Depending on the firmware generation, battery telemetry is reported in one of tw
 ### 3.5 Touch Gesture Remapping
 *   **Query Command:** `0x0108` (`08 01` in LE)
 *   **Write Command:** `0x0401` (`01 04` in LE)
+*   **Read Response:** `0x8108`; payload `[status:1] [count:1] [records...]`
+    (the count is at payload offset 1 and records begin at offset 2).
 
 *   **Gesture Config Record (4 Bytes):** `[earbud_id] [action_type] [trigger_id] [function_id]`
     *   **earbud_id:** `1` = Left Bud, `2` = Right Bud
     *   **action_type:** `1` = Basic Tap, `6` = Custom Swipe/Long-press
     *   **trigger_id:** `1` = Single, `2` = Double, `3` = Triple, `4` = Long Press, `5` = Double & Hold, `6` = Slide
-    *   **function_id:** `0` = None, `1` = Play/Pause, `5` = Prev Track, `6` = Next Track, `0x0B` = Volume-, `0x0C` = Volume+, `0x1C`/`0x1D` = Game Mode Toggle
+    *   **function_id:** `0` = None, `1` = Play/Pause, `3` = Voice Assistant (OPPO), `4` = Voice Assistant (Realme), `5` = Prev Track, `6` = Next Track, `0x0B` = Volume-, `0x0C` = Volume+, `0x11` = Game Mode, `0x1C`/`0x1D` = Game Mode Toggle (Buds3 Pro custom gestures)
 *   **Write Payload:** `<count:1> [gesture_records...]` (Count of 4-byte records to write).
+*   **Write Ack:** `0x8401` with a one-byte status (`0x00` = success).
 
 ---
 
