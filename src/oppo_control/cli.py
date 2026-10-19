@@ -8,6 +8,17 @@ from .protocol import OppoFrame
 from .commands import EQPreset
 from .exceptions import OppoConnectionError, OppoError
 
+# argparse accepts these names; map them to the EQ enum explicitly because
+# e.g. "treble" is not a member name (the enum calls it TREBLE_BOOST).
+EQ_CHOICES = {
+    "original": EQPreset.ORIGINAL,
+    "bass": EQPreset.BASS,
+    "treble": EQPreset.TREBLE_BOOST,
+    "vocal": EQPreset.VOCAL,
+    "bass_boost": EQPreset.BASS_BOOST,
+    "treble_boost": EQPreset.TREBLE_BOOST,
+}
+
 async def run_cli(args):
     if args.subcommand == "replay":
         # Offline replay mode: no bluetooth connection required
@@ -68,7 +79,7 @@ async def run_cli(args):
                 print(f"[+] Active Noise Cancelling successfully set to: {args.mode.upper()}")
                 
             elif args.subcommand == "eq":
-                preset = EQPreset[args.preset.upper()]
+                preset = EQ_CHOICES[args.preset]
                 await device.set_equalizer(preset)
                 print(f"[+] Equalizer hardware register updated to profile: {args.preset.upper()}")
 

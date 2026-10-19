@@ -4,8 +4,9 @@ import pytest
 # Configure headless offscreen rendering for Qt runner
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QBoxLayout
 from PySide6.QtCore import Qt
+from oppo_control.commands import TouchGesture
 from oppo_control.gui import MainWindow
 from oppo_control.devices import EncoBuds3ProProfile, OnePlusNordBuds3Profile
 
@@ -140,3 +141,79 @@ def test_gui_silhouette_paint_rendering(q_app):
     left.repaint()
     right.repaint()
     case.repaint()
+
+
+def _gesture():
+    return TouchGesture(earbud_id=1, action_type=1, trigger_id=1, function_id=0x01)
+
+
+def test_gui_apply_gestures_reenables_after_success(q_app):
+    """Apply must return to Connected and be reusable after a successful write."""
+    window = MainWindow(auto_connect=False)
+    try:
+        window.is_connected = True
+        window._gestures = [_gesture()]
+        window.worker.save_gestures = lambda gestures: window._on_gestures_received(gestures)
+
+        window._on_apply_gestures()
+
+        assert window.status_lbl.text() == "Connected"
+        assert window.btn_apply_gestures.isEnabled() is True
+    finally:
+        window.worker.stop()
+        window.worker.wait()
+
+
+def test_gui_apply_gestures_reenables_after_failure(q_app):
+    """A failed gesture write must not leave the Apply button stuck disabled."""
+    window = MainWindow(auto_connect=False)
+    try:
+        window.is_connected = True
+        window._gestures = [_gesture()]
+        window.worker.save_gestures = lambda gestures: None
+
+        window._on_apply_gestures()
+        assert window.btn_apply_gestures.isEnabled() is False
+
+        window._on_worker_error("write failed")
+        assert window.status_lbl.text() == "Apply Failed"
+        assert window.btn_apply_gestures.isEnabled() is True
+    finally:
+        window.worker.stop()
+        window.worker.wait()
+
+
+def test_gui_dashboard_stretch_resets_when_stacked(q_app):
+    """Width stretches from the fullscreen layout must not leak into stacked modes."""
+    window = MainWindow(auto_connect=False)
+    try:
+        window.width = lambda: 1300
+        window._apply_layout_mode()
+        assert window._dash_body.direction() == QBoxLayout.LeftToRight
+        assert (window._dash_body.stretch(0), window._dash_body.stretch(1)) == (3, 2)
+
+        window.width = lambda: 900
+        window._apply_layout_mode()
+        assert window._dash_body.direction() == QBoxLayout.TopToBottom
+        assert (window._dash_body.stretch(0), window._dash_body.stretch(1)) == (0, 0)
+    finally:
+        window.worker.stop()
+        window.worker.wait()
+
+
+def test_gui_anc_buttons_send_protocol_modes(q_app):
+    """UI captions must map to the protocol modes, not to button label text."""
+    window = MainWindow(auto_connect=False)
+    try:
+        window.is_connected = True
+        seen = []
+        window.worker.set_anc_mode = seen.append
+
+        window._on_anc_changed(window.btn_anc, True)
+        window._on_anc_changed(window.btn_anc_off, True)
+        window._on_anc_changed(window.btn_transparency, True)
+
+        assert seen == ["on", "off", "transparency"]
+    finally:
+        window.worker.stop()
+        window.worker.wait()

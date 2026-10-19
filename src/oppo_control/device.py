@@ -17,6 +17,7 @@ from .commands import (
     encode_volume_read, encode_volume_write
 )
 from .codecs import EQCodec, GameModeCodec, GestureCodec, FindDeviceCodec, VolumeCodec
+from .exceptions import OppoError
 
 logger = logging.getLogger("oppo_control.device")
 
@@ -482,5 +483,12 @@ class OppoDevice:
             raise ValueError("Failed to set Alert Volume (invalid response frame)")
 
     async def set_anc_mode(self, mode: str):
-        logger.warning(f"ANC mode set to '{mode}' requested, but standard OPPO Enco Buds3 Pro hardware does not support ANC.")
-        return True
+        # Resolve the capability profile if the caller has not fetched telemetry yet.
+        if self.profile is None:
+            await self.get_battery()
+        if not self.profile or not self.profile.supports_anc:
+            name = self.profile.name if self.profile else "this device"
+            raise OppoError(f"ANC is not supported by {name}.")
+        # ANC-capable profiles exist in the device table, but the RFCOMM
+        # command set for them has not been reverse-engineered yet.
+        raise OppoError(f"ANC control is not implemented for {self.profile.name}.")

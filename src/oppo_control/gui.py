@@ -47,6 +47,7 @@ GESTURE_FUNCTIONS: Dict[int, str] = {
     0x0B: "Volume Down",
     0x0C: "Volume Up",
     0x1C: "Game Mode Toggle",
+    0x1D: "Game Mode Toggle (alt)",
 }
 TRIGGER_NAMES = {
     1: "Single Tap", 2: "Double Tap", 3: "Triple Tap",
@@ -1284,7 +1285,7 @@ class MainWindow(QMainWindow):
         # Disable telemetry controls by default until connection
         self._set_controls_enabled(False)
 
-        # Apply remembered theme (also persists it back to settings)
+        # Always launch dark; the Settings toggle is per-session only.
         self.apply_theme(self.theme_mode)
 
         # Restore window geometry from last session
@@ -1913,6 +1914,13 @@ class MainWindow(QMainWindow):
             if widget:
                 widget.setParent(None)
 
+        # A successful read means the write (if any) finished: put the
+        # status line back and let the user apply another mapping.
+        self.btn_apply_gestures.setEnabled(self.is_connected)
+        if self.is_connected:
+            self.status_lbl.setText("Connected")
+            self.status_lbl.setStyleSheet("color: #7FB069; font-size: 10px;")
+
         if not gestures:
             lbl = QLabel("No gesture configurations mapped.")
             lbl.setAlignment(Qt.AlignCenter)
@@ -1994,6 +2002,9 @@ class MainWindow(QMainWindow):
         self.vol_slider.setEnabled(True)
         self.vol_value_lbl.setText(f"{self._confirmed_volume}%")
 
+        # Gesture writes disable Apply too; a failure must not leave it stuck.
+        self.btn_apply_gestures.setEnabled(self.is_connected)
+
     # --- Responsive breakpoints: mobile / floating / laptop / fullscreen ---
 
     def resizeEvent(self, event):
@@ -2010,18 +2021,24 @@ class MainWindow(QMainWindow):
             self.app_title_label.setVisible(False)
             self.status_lbl.setVisible(False)
             self._dash_body.setDirection(QBoxLayout.TopToBottom)
+            self._dash_body.setStretch(0, 0)
+            self._dash_body.setStretch(1, 0)
         elif w < 860:
             # Floating/small window: comfortable default, stacked cards.
             margins, maxw = 12, 16777215
             self.app_title_label.setVisible(True)
             self.status_lbl.setVisible(True)
             self._dash_body.setDirection(QBoxLayout.TopToBottom)
+            self._dash_body.setStretch(0, 0)
+            self._dash_body.setStretch(1, 0)
         elif w < 1240:
             # Laptop: breathing room, capped column, still stacked.
             margins, maxw = 14, 1000
             self.app_title_label.setVisible(True)
             self.status_lbl.setVisible(True)
             self._dash_body.setDirection(QBoxLayout.TopToBottom)
+            self._dash_body.setStretch(0, 0)
+            self._dash_body.setStretch(1, 0)
         else:
             # Fullscreen: wide canvas — battery left, controls right.
             margins, maxw = 18, 1400
@@ -2088,7 +2105,14 @@ class MainWindow(QMainWindow):
 
     def _on_anc_changed(self, btn, checked):
         if checked and self.is_connected:
-            self.worker.set_anc_mode(btn.text().lower())
+            # Button captions are UI text ("Normal (Off)"), not protocol modes.
+            if btn is self.btn_anc:
+                mode = "on"
+            elif btn is self.btn_transparency:
+                mode = "transparency"
+            else:
+                mode = "off"
+            self.worker.set_anc_mode(mode)
 
     def _on_volume_slider_changed(self, val: int):
         self.vol_value_lbl.setText(f"{val}%")
@@ -2247,8 +2271,10 @@ def main(argv=None):
     app.setOrganizationName(ORG_NAME)
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName("OPPO Companion")
-    app.setQuitOnLastWindowClosed(False)
     window = MainWindow(mac_address=args.mac, auto_connect=not args.no_auto_connect)
+    # With a tray, closing hides the window and must not quit the app.
+    # Without one (headless/no StatusNotifier host), closing must exit.
+    app.setQuitOnLastWindowClosed(window.tray is None)
     window.show()
     sys.exit(app.exec())
 
