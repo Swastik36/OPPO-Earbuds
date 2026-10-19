@@ -12,6 +12,7 @@ license = { text = "GPL-3.0-or-later" }
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.10",
     "Topic :: System :: Hardware :: Hardware Drivers"
@@ -47,3 +48,6 @@ dev = [
 [project.scripts]
 oppoctl = "oppo_control.cli:main"
 oppogui = "oppo_control.gui:main"
+
+[tool.setuptools]
+license-files = ["LICENSE"]

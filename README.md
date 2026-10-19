@@ -3,7 +3,7 @@
 ![Linux Compatible](https://img.shields.io/badge/OS-Linux-blue?logo=linux)
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)
 ![Protocol](https://img.shields.io/badge/Protocol-OPO%20v1%20RFCOMM-orange)
-![License](https://img.shields.io/badge/License-GPLv3-green)
+![License](https://img.shields.io/badge/License-GPL--3.0--or--later-green)
 
 An open-source Linux implementation library, Qt6 Desktop GUI, and CLI driver for **OPPO Enco Buds3 Pro** (and OPO v1 protocol earbuds).
 
@@ -232,4 +232,20 @@ Special thanks and recognition to:
 ## 9. Search Tags & Discoverability
 
 `oppo-telemetry-control` • `earbud-control` • `oppo-enco-buds3-pro` • `heymelody-linux` • `heymelody-alternative` • `oppo-earbuds-linux` • `oneplus-buds-linux` • `realme-buds-linux` • `tws-telemetry` • `bluetooth-rfcomm-channel-15` • `bluez-oppo-driver` • `pyside6-oppo-gui`
+
+---
+
+## License
+
+Copyright (C) 2026 OPPO Linux Companion Community
+
+This project is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+It is distributed in the hope that it will be useful, but **without any
+warranty**; without even the implied warranty of merchantability or fitness for
+a particular purpose. See the [GNU General Public License v3.0 or later](LICENSE)
+for the full text.
 

@@ -10,6 +10,9 @@ All notable changes to this project are documented in this file.
 *   `oppoctl gesture <ear> <action> <trigger> <function>` remaps one touch-gesture record, verifies the read-back, and exits nonzero when the buds acknowledge but ignore the write. `--dry-run` previews the change.
 *   Gesture rows are labelled `Basic` / `Custom` so the two six-trigger tables are distinguishable.
 
+### Changed
+*   Relicensed the project under **GPL-3.0-or-later**. `LICENSE` now contains the GNU GPLv3 text, and the package metadata and README badge match it.
+
 ### Fixed
 *   Touch-gesture reads now parse the real response header (`[status] [count]` at payload offsets 0–1) and return all 24 records instead of silently exposing only the first one. The write format was already correct and is confirmed against the capture library.
 *   Gesture labels now include Voice Assistant (`0x03`/`0x04`) and Game Mode (`0x11`) so the GUI can display and remap those functions.
